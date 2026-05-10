@@ -20,14 +20,17 @@ Node.js and npm installed.
 Open two terminals in the root directory.
 
 #### Terminal 1 Backend
-cd phos engine && uv run uvicorn main:app reload
+`cd phos-engine && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000`
 
 #### Terminal 2 Frontend
-cd phos portal && npm run dev
+`cd phos-portal && npm install && npm run dev`
+
+The frontend calls the backend at `/api/status` (proxied to `http://127.0.0.1:8000` in dev).
 
 ## Deployment to Raspberry Pi 2
 
-Deployment is handled automatically via GitHub Actions whenever you push to main.
+Deployment is handled automatically via GitHub Actions whenever you push to `main`.
+The workflow builds `phos-portal` and restarts the backend service that serves the built frontend.
 
 ### Requirements on the Pi
 uv installed.
