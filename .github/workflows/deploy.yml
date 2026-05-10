@@ -1,0 +1,28 @@
+name: Deploy Phos
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy on Raspberry Pi
+    runs-on: [self-hosted, raspi]
+    concurrency:
+      group: phos-deploy
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update Backend
+        run: |
+          cd phos-engine
+          /home/millan/.cargo/bin/uv sync --frozen
+
+      - name: Restart Service
+        run: |
+          sudo systemctl restart phos.service
