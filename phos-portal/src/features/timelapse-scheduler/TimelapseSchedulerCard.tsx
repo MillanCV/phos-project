@@ -1,4 +1,11 @@
 import { useState } from 'react'
+import { Clock3, Play, Square } from 'lucide-react'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
+import { Input } from '../../components/ui/Input'
+import { Separator } from '../../components/ui/Separator'
+import { Toast } from '../../components/ui/Toast'
 import { apiClient } from '../../shared/api-client'
 
 type TimelapsePlan = {
@@ -54,67 +61,79 @@ export function TimelapseSchedulerCard() {
   }
 
   return (
-    <section className="card">
-      <header className="card-header">
-        <h2>Timelapse</h2>
-      </header>
-      <div className="content-grid">
-        <label>
-          Intervalo (s)
-          <input
-            type="number"
-            min={10}
-            value={intervalSeconds}
-            onChange={(event) => setIntervalSeconds(Number(event.target.value))}
-          />
-        </label>
-        <label>
-          Inicio ventana (0-23)
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={windowStartHour}
-            onChange={(event) => setWindowStartHour(Number(event.target.value))}
-          />
-        </label>
-        <label>
-          Fin ventana (0-23)
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={windowEndHour}
-            onChange={(event) => setWindowEndHour(Number(event.target.value))}
-          />
-        </label>
-      </div>
-      <div className="row">
-        <button type="button" onClick={() => void createPlan()}>
-          Crear plan
-        </button>
-        <button type="button" disabled={!plan} onClick={() => void startPlan()}>
-          Iniciar
-        </button>
-        <button type="button" disabled={!plan} onClick={() => void stopPlan()}>
-          Detener
-        </button>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {plan && (
-        <div className="content-grid">
-          <p>
-            <strong>ID:</strong> {plan.id}
-          </p>
-          <p>
-            <strong>Estado:</strong> {plan.active ? 'activo' : 'inactivo'}
-          </p>
-          <p>
-            <strong>Ultima captura:</strong>{' '}
-            {plan.last_capture_at ? new Date(plan.last_capture_at).toLocaleString() : 'sin datos'}
-          </p>
+    <Card>
+      <CardHeader>
+        <div className="space-y-1">
+          <CardTitle>Timelapse programado</CardTitle>
+          <CardDescription>Intervalo fijo con ventana horaria de operacion automatica.</CardDescription>
         </div>
-      )}
-    </section>
+        {plan && <Badge variant={plan.active ? 'success' : 'warning'}>{plan.active ? 'activo' : 'inactivo'}</Badge>}
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="grid gap-1 text-sm text-mutedForeground">
+            Intervalo (s)
+            <Input
+              type="number"
+              min={10}
+              value={intervalSeconds}
+              onChange={(event) => setIntervalSeconds(Number(event.target.value))}
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-mutedForeground">
+            Inicio ventana
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={windowStartHour}
+              onChange={(event) => setWindowStartHour(Number(event.target.value))}
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-mutedForeground">
+            Fin ventana
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={windowEndHour}
+              onChange={(event) => setWindowEndHour(Number(event.target.value))}
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => void createPlan()}>
+            <Clock3 className="h-4 w-4" />
+            Crear plan
+          </Button>
+          <Button disabled={!plan} onClick={() => void startPlan()}>
+            <Play className="h-4 w-4" />
+            Iniciar
+          </Button>
+          <Button variant="danger" disabled={!plan} onClick={() => void stopPlan()}>
+            <Square className="h-4 w-4" />
+            Detener
+          </Button>
+        </div>
+        {error && <Toast variant="danger">{error}</Toast>}
+        {plan ? (
+          <>
+            <Separator />
+            <div className="grid gap-2 text-sm text-mutedForeground">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-foreground">ID del plan</span>
+                <span className="truncate text-right">{plan.id}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-foreground">Ultima captura</span>
+                <span>{plan.last_capture_at ? new Date(plan.last_capture_at).toLocaleString() : 'sin datos'}</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-mutedForeground">Crea un plan para habilitar el control automatico.</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }

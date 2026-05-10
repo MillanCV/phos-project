@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import { Camera, Download } from 'lucide-react'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
+import { Toast } from '../../components/ui/Toast'
 import { apiClient } from '../../shared/api-client'
 
 type CaptureRecord = {
@@ -37,32 +42,44 @@ export function ManualCaptureCard() {
   }
 
   return (
-    <section className="card">
-      <header className="card-header">
-        <h2>Disparo Manual</h2>
-      </header>
-      <div className="row">
-        <button type="button" disabled={loading} onClick={() => void capture()}>
-          {loading ? 'Disparando...' : 'Disparar'}
-        </button>
-        <button type="button" onClick={() => void loadLatest()}>
-          Ver ultima captura
-        </button>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {latest && (
-        <div className="content-grid">
-          <p>
-            <strong>Archivo:</strong> {latest.file_path}
-          </p>
-          <p>
-            <strong>Fecha:</strong> {new Date(latest.captured_at).toLocaleString()}
-          </p>
-          <p>
-            <strong>Fuente:</strong> {latest.source}
-          </p>
+    <Card>
+      <CardHeader>
+        <div className="space-y-1">
+          <CardTitle>Disparo manual</CardTitle>
+          <CardDescription>Captura bajo demanda para validar encuadre y foco.</CardDescription>
         </div>
-      )}
-    </section>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={loading} onClick={() => void capture()}>
+            <Camera className="h-4 w-4" />
+            {loading ? 'Disparando...' : 'Disparar'}
+          </Button>
+          <Button variant="secondary" onClick={() => void loadLatest()}>
+            <Download className="h-4 w-4" />
+            Ver ultima captura
+          </Button>
+        </div>
+        {error && <Toast variant="danger">{error}</Toast>}
+        {latest ? (
+          <div className="grid gap-2 text-sm text-mutedForeground">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-foreground">Archivo</span>
+              <span className="truncate text-right">{latest.file_path}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-foreground">Fecha</span>
+              <span>{new Date(latest.captured_at).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-foreground">Fuente</span>
+              <Badge variant="default">{latest.source}</Badge>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-mutedForeground">Sin capturas registradas todavia.</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
