@@ -77,6 +77,13 @@ Defaults:
 - `GET /api/solar/range?days=30`
 - `GET /api/solar/range/summary?days=30` (sunrise/sunset ranges + daylight/night stats)
 
+Solar responses include planning windows for:
+
+- golden hour
+- blue hour
+- civil, nautical, and astronomical twilights
+- daytime and nighttime durations
+
 ## Deployment to Raspberry Pi 2
 
 Deployment is handled automatically via GitHub Actions whenever you push to `main`.

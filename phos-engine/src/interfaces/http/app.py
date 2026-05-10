@@ -50,8 +50,22 @@ class TimelapsePlanResponse(BaseModel):
 
 class SolarWindowResponse(BaseModel):
     day: date
+    astronomical_dawn: datetime | None
+    nautical_dawn: datetime | None
+    civil_dawn: datetime | None
+    blue_hour_morning_start: datetime | None
+    blue_hour_morning_end: datetime | None
+    golden_hour_morning_start: datetime | None
     sunrise: datetime
+    golden_hour_morning_end: datetime | None
     sunset: datetime
+    golden_hour_evening_start: datetime | None
+    golden_hour_evening_end: datetime | None
+    blue_hour_evening_start: datetime | None
+    blue_hour_evening_end: datetime | None
+    civil_dusk: datetime | None
+    nautical_dusk: datetime | None
+    astronomical_dusk: datetime | None
     solar_noon: datetime
     daylight_hours: float
     night_hours: float
@@ -231,8 +245,22 @@ def _to_plan_response(plan) -> TimelapsePlanResponse:
 def _to_solar_response(window) -> SolarWindowResponse:
     return SolarWindowResponse(
         day=window.day,
+        astronomical_dawn=window.astronomical_dawn,
+        nautical_dawn=window.nautical_dawn,
+        civil_dawn=window.civil_dawn,
+        blue_hour_morning_start=window.blue_hour_morning_start,
+        blue_hour_morning_end=window.blue_hour_morning_end,
+        golden_hour_morning_start=window.golden_hour_morning_start,
         sunrise=window.sunrise,
+        golden_hour_morning_end=window.golden_hour_morning_end,
         sunset=window.sunset,
+        golden_hour_evening_start=window.golden_hour_evening_start,
+        golden_hour_evening_end=window.golden_hour_evening_end,
+        blue_hour_evening_start=window.blue_hour_evening_start,
+        blue_hour_evening_end=window.blue_hour_evening_end,
+        civil_dusk=window.civil_dusk,
+        nautical_dusk=window.nautical_dusk,
+        astronomical_dusk=window.astronomical_dusk,
         solar_noon=window.solar_noon,
         daylight_hours=round(window.daylight_seconds / 3600, 3),
         night_hours=round(window.night_seconds / 3600, 3),

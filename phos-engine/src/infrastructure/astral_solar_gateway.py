@@ -7,7 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from astral import LocationInfo
-from astral.sun import sun
+from astral.sun import SunDirection, dawn, dusk, sun, time_at_elevation
 
 from src.domain.solar import SolarLocation, SolarWindow
 
@@ -28,7 +28,13 @@ class AstralSolarGateway:
     def get_window(self, on_date: date) -> SolarWindow:
         key = on_date.isoformat()
         if key in self._cache:
-            return self._cache[key]
+            cached = self._cache[key]
+            if not self._has_extended_windows(cached):
+                refreshed = self._calculate_window(on_date)
+                self._cache[key] = refreshed
+                self._save_cache()
+                return refreshed
+            return cached
 
         window = self._calculate_window(on_date)
         self._cache[key] = window
@@ -55,7 +61,62 @@ class AstralSolarGateway:
             longitude=self._location.longitude,
         )
         result = sun(location.observer, date=on_date, tzinfo=tz)
-        return SolarWindow(day=on_date, sunrise=result["sunrise"], sunset=result["sunset"], solar_noon=result["noon"])
+        sunrise = result["sunrise"]
+        sunset = result["sunset"]
+
+        civil_dawn = self._safe_time(lambda: dawn(location.observer, date=on_date, tzinfo=tz, depression=6))
+        civil_dusk = self._safe_time(lambda: dusk(location.observer, date=on_date, tzinfo=tz, depression=6))
+        nautical_dawn = self._safe_time(lambda: dawn(location.observer, date=on_date, tzinfo=tz, depression=12))
+        nautical_dusk = self._safe_time(lambda: dusk(location.observer, date=on_date, tzinfo=tz, depression=12))
+        astronomical_dawn = self._safe_time(lambda: dawn(location.observer, date=on_date, tzinfo=tz, depression=18))
+        astronomical_dusk = self._safe_time(lambda: dusk(location.observer, date=on_date, tzinfo=tz, depression=18))
+
+        golden_morning_start = self._safe_time(
+            lambda: time_at_elevation(
+                location.observer, -4.0, date=on_date, direction=SunDirection.RISING, tzinfo=tz, with_refraction=True
+            )
+        )
+        golden_morning_end = self._safe_time(
+            lambda: time_at_elevation(
+                location.observer, 6.0, date=on_date, direction=SunDirection.RISING, tzinfo=tz, with_refraction=True
+            )
+        )
+        golden_evening_start = self._safe_time(
+            lambda: time_at_elevation(
+                location.observer, 6.0, date=on_date, direction=SunDirection.SETTING, tzinfo=tz, with_refraction=True
+            )
+        )
+        golden_evening_end = self._safe_time(
+            lambda: time_at_elevation(
+                location.observer, -4.0, date=on_date, direction=SunDirection.SETTING, tzinfo=tz, with_refraction=True
+            )
+        )
+
+        blue_morning_start = civil_dawn
+        blue_morning_end = golden_morning_start
+        blue_evening_start = golden_evening_end
+        blue_evening_end = civil_dusk
+
+        return SolarWindow(
+            day=on_date,
+            sunrise=sunrise,
+            sunset=sunset,
+            solar_noon=result["noon"],
+            civil_dawn=civil_dawn,
+            civil_dusk=civil_dusk,
+            nautical_dawn=nautical_dawn,
+            nautical_dusk=nautical_dusk,
+            astronomical_dawn=astronomical_dawn,
+            astronomical_dusk=astronomical_dusk,
+            golden_hour_morning_start=golden_morning_start,
+            golden_hour_morning_end=golden_morning_end,
+            golden_hour_evening_start=golden_evening_start,
+            golden_hour_evening_end=golden_evening_end,
+            blue_hour_morning_start=blue_morning_start,
+            blue_hour_morning_end=blue_morning_end,
+            blue_hour_evening_start=blue_evening_start,
+            blue_hour_evening_end=blue_evening_end,
+        )
 
     def _load_cache(self) -> dict[str, SolarWindow]:
         if not self._cache_file.exists():
@@ -74,27 +135,79 @@ class AstralSolarGateway:
             if not isinstance(value, dict):
                 continue
             try:
-                cache[key] = SolarWindow(
-                    day=date.fromisoformat(value["day"]),
-                    sunrise=datetime.fromisoformat(value["sunrise"]),
-                    sunset=datetime.fromisoformat(value["sunset"]),
-                    solar_noon=datetime.fromisoformat(value["solar_noon"]),
-                    calculated_at=datetime.fromisoformat(value["calculated_at"]),
-                )
+                cache[key] = self._deserialize_window(value)
             except (KeyError, ValueError, TypeError):
                 continue
         return cache
 
     def _save_cache(self) -> None:
-        serialized = {
-            key: {
-                **asdict(value),
-                "day": value.day.isoformat(),
-                "sunrise": value.sunrise.isoformat(),
-                "sunset": value.sunset.isoformat(),
-                "solar_noon": value.solar_noon.isoformat(),
-                "calculated_at": value.calculated_at.isoformat(),
-            }
-            for key, value in self._cache.items()
-        }
+        serialized = {key: self._serialize_window(value) for key, value in self._cache.items()}
         self._cache_file.write_text(json.dumps(serialized, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _safe_time(fn):
+        try:
+            return fn()
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _has_extended_windows(window: SolarWindow) -> bool:
+        extended_fields = (
+            window.civil_dawn,
+            window.civil_dusk,
+            window.nautical_dawn,
+            window.nautical_dusk,
+            window.astronomical_dawn,
+            window.astronomical_dusk,
+            window.golden_hour_morning_start,
+            window.golden_hour_morning_end,
+            window.golden_hour_evening_start,
+            window.golden_hour_evening_end,
+            window.blue_hour_morning_start,
+            window.blue_hour_morning_end,
+            window.blue_hour_evening_start,
+            window.blue_hour_evening_end,
+        )
+        return any(field is not None for field in extended_fields)
+
+    @staticmethod
+    def _serialize_window(window: SolarWindow) -> dict[str, str | None]:
+        payload = asdict(window)
+        serialized: dict[str, str | None] = {}
+        for key, value in payload.items():
+            if isinstance(value, date) and not isinstance(value, datetime):
+                serialized[key] = value.isoformat()
+            elif isinstance(value, datetime):
+                serialized[key] = value.isoformat()
+            else:
+                serialized[key] = value
+        return serialized
+
+    @staticmethod
+    def _deserialize_window(data: dict[str, str | None]) -> SolarWindow:
+        def parse_dt(key: str) -> datetime | None:
+            raw = data.get(key)
+            return datetime.fromisoformat(raw) if raw else None
+
+        return SolarWindow(
+            day=date.fromisoformat(str(data["day"])),
+            sunrise=datetime.fromisoformat(str(data["sunrise"])),
+            sunset=datetime.fromisoformat(str(data["sunset"])),
+            solar_noon=datetime.fromisoformat(str(data["solar_noon"])),
+            civil_dawn=parse_dt("civil_dawn"),
+            civil_dusk=parse_dt("civil_dusk"),
+            nautical_dawn=parse_dt("nautical_dawn"),
+            nautical_dusk=parse_dt("nautical_dusk"),
+            astronomical_dawn=parse_dt("astronomical_dawn"),
+            astronomical_dusk=parse_dt("astronomical_dusk"),
+            golden_hour_morning_start=parse_dt("golden_hour_morning_start"),
+            golden_hour_morning_end=parse_dt("golden_hour_morning_end"),
+            golden_hour_evening_start=parse_dt("golden_hour_evening_start"),
+            golden_hour_evening_end=parse_dt("golden_hour_evening_end"),
+            blue_hour_morning_start=parse_dt("blue_hour_morning_start"),
+            blue_hour_morning_end=parse_dt("blue_hour_morning_end"),
+            blue_hour_evening_start=parse_dt("blue_hour_evening_start"),
+            blue_hour_evening_end=parse_dt("blue_hour_evening_end"),
+            calculated_at=datetime.fromisoformat(str(data["calculated_at"])),
+        )
