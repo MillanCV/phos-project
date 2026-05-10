@@ -13,32 +13,45 @@ github: CI CD pipelines for automated deployment to the Pi via Tailscale.
 ## Local Development Mac
 
 ### Prerequisites
+
 uv installed.
 Node.js and npm installed.
 
 ### Start the system
+
 Open two terminals in the root directory.
 
 #### Terminal 1 Backend
+
 `cd phos-engine && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000`
 
 #### Terminal 2 Frontend
-`cd phos-portal && npm install && npm run dev`
 
-The frontend calls the backend at `/api/status` (proxied to `http://127.0.0.1:8000` in dev).
+`cd phos-portal && cp .env.example .env && npm install && npm run dev`
+
+The frontend and backend run independently:
+
+- Backend API: `http://127.0.0.1:8000`
+- Frontend app: `http://127.0.0.1:5173`
+
+Frontend calls backend using `VITE_API_BASE_URL`.
 
 ## Deployment to Raspberry Pi 2
 
 Deployment is handled automatically via GitHub Actions whenever you push to `main`.
-The workflow builds `phos-portal` and restarts the backend service that serves the built frontend.
+The workflow builds `phos-portal`, syncs backend dependencies, and restarts backend plus optional frontend services.
+
+Set repository variable `PHOS_API_BASE_URL` with your backend URL (example: `http://100.80.133.58:8000`) so frontend builds with the correct API endpoint.
 
 ### Requirements on the Pi
+
 uv installed.
 chdkptp binaries located at chdkptp tool.
 User millan added to the plugdev group for USB access.
 Tailscale active for secure remote access.
 
 ### GitHub Secrets
+
 Set the following secrets in your repository settings.
 PI HOST: Your Pi Tailscale IP.
 PI USERNAME: millan.
@@ -54,4 +67,5 @@ Network: Tailscale Mesh VPN.
 CI CD: GitHub Actions.
 
 ## License
+
 Private Project. All rights reserved.

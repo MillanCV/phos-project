@@ -24,6 +24,8 @@ jobs:
           node-version: 20
 
       - name: Build Frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.PHOS_API_BASE_URL }}
         run: |
           cd phos-portal
           npm ci
@@ -34,6 +36,14 @@ jobs:
           cd phos-engine
           /home/millan/.local/bin/uv sync
 
-      - name: Restart Service
+      - name: Restart Backend Service
         run: |
           sudo systemctl restart phos.service
+
+      - name: Restart Frontend Service
+        run: |
+          if sudo systemctl list-unit-files | grep -q '^phos-portal.service'; then
+            sudo systemctl restart phos-portal.service
+          else
+            echo "phos-portal.service not found, skipping restart"
+          fi
