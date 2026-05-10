@@ -41,7 +41,7 @@ Frontend calls backend using `VITE_API_BASE_URL`.
 Deployment is handled automatically via GitHub Actions whenever you push to `main`.
 The workflow builds `phos-portal`, syncs backend dependencies, and restarts backend plus optional frontend services.
 
-Set repository variable `PHOS_API_BASE_URL` with your backend URL (example: `http://100.80.133.58:8000`) so frontend builds with the correct API endpoint.
+Set repository variable `PHOS_API_BASE_URL` to `/api` when using reverse proxy on the same domain (recommended for production).
 
 ### Requirements on the Pi
 
