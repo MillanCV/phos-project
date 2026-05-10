@@ -1,20 +1,24 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from dataclasses import asdict
 import os
 from pathlib import Path
 import socket
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.application.solar_use_cases import GetSolarRange, GetSolarWindow
 from src.application.timelapse_manager import TimelapseManager
 from src.application.use_cases import CapturePhoto, GetCameraStatus, GetLatestCapture, GetSystemMetrics
 from src.domain.errors import CameraUnavailableError, NotFoundError, ValidationError
+from src.domain.solar import SolarLocation
+from src.infrastructure.astral_solar_gateway import AstralSolarGateway
 from src.infrastructure.chdkptp_camera_gateway import ChdkptpCameraGateway
 from src.infrastructure.host_metrics_gateway import HostMetricsGateway
 from src.infrastructure.json_timelapse_plan_repository import JsonTimelapsePlanRepository
@@ -44,6 +48,32 @@ class TimelapsePlanResponse(BaseModel):
     last_capture_at: str | None
 
 
+class SolarWindowResponse(BaseModel):
+    day: date
+    sunrise: datetime
+    sunset: datetime
+    solar_noon: datetime
+    daylight_hours: float
+    night_hours: float
+    calculated_at: datetime
+
+
+class SolarRangeSummaryResponse(BaseModel):
+    start_date: date
+    end_date: date
+    days: int
+    sunrise_min: datetime
+    sunrise_max: datetime
+    sunset_min: datetime
+    sunset_max: datetime
+    daylight_min_hours: float
+    daylight_max_hours: float
+    daylight_avg_hours: float
+    night_min_hours: float
+    night_max_hours: float
+    night_avg_hours: float
+
+
 def create_app() -> FastAPI:
     configure_logging()
     logger = get_logger("phos.api")
@@ -52,17 +82,29 @@ def create_app() -> FastAPI:
     captures_dir = data_dir / "captures"
     metadata_file = data_dir / "captures.json"
     plans_file = data_dir / "timelapse_plans.json"
+    solar_cache_file = data_dir / "solar_cache.json"
 
     camera_gateway = ChdkptpCameraGateway(captures_dir=captures_dir)
     storage_gateway = LocalStorageGateway(metadata_file=metadata_file)
     scheduler_gateway = ThreadSchedulerGateway()
     plan_repository = JsonTimelapsePlanRepository(storage_file=plans_file)
     metrics_gateway = HostMetricsGateway(disk_path=Path("/"))
+    solar_location = SolarLocation(
+        latitude=float(os.getenv("PHOS_LATITUDE", "40.4168")),
+        longitude=float(os.getenv("PHOS_LONGITUDE", "-3.7038")),
+        timezone_name=os.getenv("PHOS_TIMEZONE", "Europe/Madrid"),
+        name=os.getenv("PHOS_LOCATION_NAME", "Phos Site"),
+    )
+    solar_gateway = AstralSolarGateway(location=solar_location, cache_file=solar_cache_file)
+    solar_gateway.prime_cache(days=int(os.getenv("PHOS_SOLAR_CACHE_DAYS", "30")))
+    local_tz = ZoneInfo(solar_location.timezone_name)
 
     get_camera_status = GetCameraStatus(camera_gateway)
     capture_photo = CapturePhoto(camera_gateway, storage_gateway)
     get_latest_capture = GetLatestCapture(storage_gateway)
     get_system_metrics = GetSystemMetrics(metrics_gateway)
+    get_solar_window = GetSolarWindow(solar_gateway)
+    get_solar_range = GetSolarRange(solar_gateway)
     timelapse_manager = TimelapseManager(
         camera_gateway=camera_gateway,
         storage_gateway=storage_gateway,
@@ -155,6 +197,23 @@ def create_app() -> FastAPI:
     def system_metrics() -> dict[str, Any]:
         return asdict(get_system_metrics.execute())
 
+    @app.get("/api/solar/today", response_model=SolarWindowResponse)
+    def solar_today() -> SolarWindowResponse:
+        today = datetime.now(local_tz).date()
+        return _to_solar_response(get_solar_window.execute(today))
+
+    @app.get("/api/solar/range", response_model=list[SolarWindowResponse])
+    def solar_range(days: int = Query(default=7, ge=1, le=366)) -> list[SolarWindowResponse]:
+        today = datetime.now(local_tz).date()
+        windows = get_solar_range.execute(start_date=today, days=days)
+        return [_to_solar_response(window) for window in windows]
+
+    @app.get("/api/solar/range/summary", response_model=SolarRangeSummaryResponse)
+    def solar_range_summary(days: int = Query(default=30, ge=1, le=366)) -> SolarRangeSummaryResponse:
+        today = datetime.now(local_tz).date()
+        windows = get_solar_range.execute(start_date=today, days=days)
+        return _to_solar_summary(windows)
+
     return app
 
 
@@ -166,4 +225,39 @@ def _to_plan_response(plan) -> TimelapsePlanResponse:
         window_end_hour=plan.window_end_hour,
         active=plan.active,
         last_capture_at=plan.last_capture_at.isoformat() if plan.last_capture_at else None,
+    )
+
+
+def _to_solar_response(window) -> SolarWindowResponse:
+    return SolarWindowResponse(
+        day=window.day,
+        sunrise=window.sunrise,
+        sunset=window.sunset,
+        solar_noon=window.solar_noon,
+        daylight_hours=round(window.daylight_seconds / 3600, 3),
+        night_hours=round(window.night_seconds / 3600, 3),
+        calculated_at=window.calculated_at,
+    )
+
+
+def _to_solar_summary(windows) -> SolarRangeSummaryResponse:
+    if not windows:
+        raise HTTPException(status_code=404, detail="no solar windows available")
+
+    daylight_hours = [window.daylight_seconds / 3600 for window in windows]
+    night_hours = [window.night_seconds / 3600 for window in windows]
+    return SolarRangeSummaryResponse(
+        start_date=windows[0].day,
+        end_date=windows[-1].day,
+        days=len(windows),
+        sunrise_min=min(window.sunrise for window in windows),
+        sunrise_max=max(window.sunrise for window in windows),
+        sunset_min=min(window.sunset for window in windows),
+        sunset_max=max(window.sunset for window in windows),
+        daylight_min_hours=round(min(daylight_hours), 3),
+        daylight_max_hours=round(max(daylight_hours), 3),
+        daylight_avg_hours=round(sum(daylight_hours) / len(daylight_hours), 3),
+        night_min_hours=round(min(night_hours), 3),
+        night_max_hours=round(max(night_hours), 3),
+        night_avg_hours=round(sum(night_hours) / len(night_hours), 3),
     )

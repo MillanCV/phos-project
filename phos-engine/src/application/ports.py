@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import date
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
 from src.domain.models import CameraStatus, CaptureRecord, SystemMetrics, TimelapsePlan
+from src.domain.solar import SolarWindow
 
 
 class CameraGateway(Protocol):
@@ -35,3 +37,11 @@ class TimelapsePlanRepository(Protocol):
 
 class MetricsGateway(Protocol):
     def get_metrics(self) -> SystemMetrics: ...
+
+
+class SolarGateway(Protocol):
+    def get_window(self, on_date: date) -> SolarWindow: ...
+
+    def get_range(self, start_date: date, days: int) -> list[SolarWindow]: ...
+
+    def prime_cache(self, days: int) -> None: ...

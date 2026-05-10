@@ -73,6 +73,9 @@ Defaults:
 - `POST /api/timelapse/plans/{id}/stop`
 - `GET /api/timelapse/plans/{id}`
 - `GET /api/system/metrics`
+- `GET /api/solar/today`
+- `GET /api/solar/range?days=30`
+- `GET /api/solar/range/summary?days=30` (sunrise/sunset ranges + daylight/night stats)
 
 ## Deployment to Raspberry Pi 2
 
@@ -85,6 +88,10 @@ Set optional backend variables:
 - `PHOS_ALLOWED_ORIGINS` (comma-separated origins)
 - `PHOS_CAMERA_MOCK=true` (run without physical camera)
 - `CHDKPTP_BIN` (custom binary path)
+- `PHOS_LATITUDE` and `PHOS_LONGITUDE` (location for sunrise/sunset)
+- `PHOS_TIMEZONE` (example: `Europe/Madrid`)
+- `PHOS_LOCATION_NAME` (label for logs/cache)
+- `PHOS_SOLAR_CACHE_DAYS` (pre-cached days on startup, default `30`)
 
 ### Requirements on the Pi
 
