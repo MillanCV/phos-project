@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.application.use_cases import CapturePhoto, GetCameraStatus, GetLatestCapture
-from src.domain.models import CameraStatus, CaptureRecord, capture_record_from_path
+from src.camera.domain import CameraStatus
+from src.camera.use_cases import GetCameraStatus
+from src.capture.domain import CaptureRecord, capture_record_from_path
+from src.capture.use_cases import CapturePhoto, GetLatestCapture
 
 
 class FakeCameraGateway:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src.interfaces.http.app import create_app
+from src.app.http import create_app
 
 
 def test_http_contract_endpoints(isolated_data_dir, monkeypatch):

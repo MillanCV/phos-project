@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from src.domain.solar import SolarWindow  # type: ignore[import-not-found]
-from src.interfaces.http.mappers.solar import to_solar_summary  # type: ignore[import-not-found]
+from src.solar.domain import SolarWindow
+from src.solar.mappers import to_solar_summary
 
 
 def test_solar_window_daylight_and_night_hours_sum_to_24():

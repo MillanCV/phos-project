@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.interfaces.http.app import create_app
+from src.app.http import create_app
 
 
 def test_app_bootstraps_container_and_routes(isolated_data_dir, monkeypatch):

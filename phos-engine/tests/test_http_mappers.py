@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from src.domain.solar import PhotoWindows, SolarWindow, TwilightTimes
-from src.interfaces.http.mappers.solar import to_solar_response
+from src.solar.domain import PhotoWindows, SolarWindow, TwilightTimes
+from src.solar.mappers import to_solar_response
 
 
 def test_to_solar_response_preserves_extended_windows():

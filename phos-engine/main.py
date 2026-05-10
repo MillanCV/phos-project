@@ -1,5 +1,5 @@
 import os
-from src.interfaces.http.app import create_app
+from src.app.http import create_app
 
 
 app = create_app()

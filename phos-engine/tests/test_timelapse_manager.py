@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from src.application.timelapse_manager import TimelapseManager
-from src.infrastructure.json_timelapse_plan_repository import JsonTimelapsePlanRepository
-from src.infrastructure.thread_scheduler_gateway import ThreadSchedulerGateway
+from src.timelapse.manager import TimelapseManager
+from src.timelapse.repository import JsonTimelapsePlanRepository
+from src.timelapse.scheduler import ThreadSchedulerGateway
 
 
 class FakeCameraGateway:

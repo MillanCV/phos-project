@@ -6,8 +6,8 @@ from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from src.domain.solar import SolarLocation
-from src.infrastructure.astral_solar_gateway import AstralSolarGateway
+from src.solar.domain import SolarLocation
+from src.solar.gateway import AstralSolarGateway
 
 
 def test_solar_gateway_returns_window_and_persists_cache():
