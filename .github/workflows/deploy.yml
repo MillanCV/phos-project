@@ -21,7 +21,8 @@ jobs:
       - name: Update Backend
         run: |
           cd phos-engine
-          /home/millan/.cargo/bin/uv sync --frozen
+          # Nueva ruta absoluta de uv
+          /home/millan/.local/bin/uv sync
 
       - name: Restart Service
         run: |
