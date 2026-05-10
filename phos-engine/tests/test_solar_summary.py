@@ -4,7 +4,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from src.domain.solar import SolarWindow  # type: ignore[import-not-found]
-from src.interfaces.http.app import _to_solar_summary  # type: ignore[import-not-found]
+from src.interfaces.http.mappers.solar import to_solar_summary  # type: ignore[import-not-found]
 
 
 def test_solar_window_daylight_and_night_hours_sum_to_24():
@@ -36,7 +36,7 @@ def test_solar_range_summary_contains_min_max_and_averages():
         ),
     ]
 
-    summary = _to_solar_summary(windows)
+    summary = to_solar_summary(windows)
 
     assert summary.days == 2
     assert summary.sunrise_min.hour == 6

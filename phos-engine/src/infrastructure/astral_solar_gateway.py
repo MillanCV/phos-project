@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from astral import LocationInfo
 from astral.sun import SunDirection, dawn, dusk, sun, time_at_elevation
 
-from src.domain.solar import SolarLocation, SolarWindow
+from src.domain.solar import PhotoWindows, SolarLocation, SolarWindow, TwilightTimes
 
 
 class AstralSolarGateway:
@@ -102,20 +102,24 @@ class AstralSolarGateway:
             sunrise=sunrise,
             sunset=sunset,
             solar_noon=result["noon"],
-            civil_dawn=civil_dawn,
-            civil_dusk=civil_dusk,
-            nautical_dawn=nautical_dawn,
-            nautical_dusk=nautical_dusk,
-            astronomical_dawn=astronomical_dawn,
-            astronomical_dusk=astronomical_dusk,
-            golden_hour_morning_start=golden_morning_start,
-            golden_hour_morning_end=golden_morning_end,
-            golden_hour_evening_start=golden_evening_start,
-            golden_hour_evening_end=golden_evening_end,
-            blue_hour_morning_start=blue_morning_start,
-            blue_hour_morning_end=blue_morning_end,
-            blue_hour_evening_start=blue_evening_start,
-            blue_hour_evening_end=blue_evening_end,
+            twilight=TwilightTimes(
+                civil_dawn=civil_dawn,
+                civil_dusk=civil_dusk,
+                nautical_dawn=nautical_dawn,
+                nautical_dusk=nautical_dusk,
+                astronomical_dawn=astronomical_dawn,
+                astronomical_dusk=astronomical_dusk,
+            ),
+            photo_windows=PhotoWindows(
+                golden_hour_morning_start=golden_morning_start,
+                golden_hour_morning_end=golden_morning_end,
+                golden_hour_evening_start=golden_evening_start,
+                golden_hour_evening_end=golden_evening_end,
+                blue_hour_morning_start=blue_morning_start,
+                blue_hour_morning_end=blue_morning_end,
+                blue_hour_evening_start=blue_evening_start,
+                blue_hour_evening_end=blue_evening_end,
+            ),
         )
 
     def _load_cache(self) -> dict[str, SolarWindow]:
@@ -172,42 +176,131 @@ class AstralSolarGateway:
         return any(field is not None for field in extended_fields)
 
     @staticmethod
-    def _serialize_window(window: SolarWindow) -> dict[str, str | None]:
+    def _serialize_window(window: SolarWindow) -> dict[str, object]:
         payload = asdict(window)
-        serialized: dict[str, str | None] = {}
-        for key, value in payload.items():
-            if isinstance(value, date) and not isinstance(value, datetime):
-                serialized[key] = value.isoformat()
-            elif isinstance(value, datetime):
-                serialized[key] = value.isoformat()
-            else:
-                serialized[key] = value
-        return serialized
+        return AstralSolarGateway._serialize_value(payload)
 
     @staticmethod
-    def _deserialize_window(data: dict[str, str | None]) -> SolarWindow:
+    def _serialize_value(value: object) -> object:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {str(key): AstralSolarGateway._serialize_value(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [AstralSolarGateway._serialize_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _deserialize_window(data: dict[str, object]) -> SolarWindow:
         def parse_dt(key: str) -> datetime | None:
             raw = data.get(key)
-            return datetime.fromisoformat(raw) if raw else None
+            return datetime.fromisoformat(str(raw)) if raw else None
+
+        twilight_data = data.get("twilight")
+        if isinstance(twilight_data, dict):
+            twilight = TwilightTimes(
+                civil_dawn=(
+                    datetime.fromisoformat(str(twilight_data["civil_dawn"])) if twilight_data.get("civil_dawn") else None
+                ),
+                civil_dusk=(
+                    datetime.fromisoformat(str(twilight_data["civil_dusk"])) if twilight_data.get("civil_dusk") else None
+                ),
+                nautical_dawn=(
+                    datetime.fromisoformat(str(twilight_data["nautical_dawn"]))
+                    if twilight_data.get("nautical_dawn")
+                    else None
+                ),
+                nautical_dusk=(
+                    datetime.fromisoformat(str(twilight_data["nautical_dusk"]))
+                    if twilight_data.get("nautical_dusk")
+                    else None
+                ),
+                astronomical_dawn=(
+                    datetime.fromisoformat(str(twilight_data["astronomical_dawn"]))
+                    if twilight_data.get("astronomical_dawn")
+                    else None
+                ),
+                astronomical_dusk=(
+                    datetime.fromisoformat(str(twilight_data["astronomical_dusk"]))
+                    if twilight_data.get("astronomical_dusk")
+                    else None
+                ),
+            )
+        else:
+            # Legacy cache format compatibility.
+            twilight = TwilightTimes(
+                civil_dawn=parse_dt("civil_dawn"),
+                civil_dusk=parse_dt("civil_dusk"),
+                nautical_dawn=parse_dt("nautical_dawn"),
+                nautical_dusk=parse_dt("nautical_dusk"),
+                astronomical_dawn=parse_dt("astronomical_dawn"),
+                astronomical_dusk=parse_dt("astronomical_dusk"),
+            )
+
+        photo_windows_data = data.get("photo_windows")
+        if isinstance(photo_windows_data, dict):
+            photo_windows = PhotoWindows(
+                golden_hour_morning_start=(
+                    datetime.fromisoformat(str(photo_windows_data["golden_hour_morning_start"]))
+                    if photo_windows_data.get("golden_hour_morning_start")
+                    else None
+                ),
+                golden_hour_morning_end=(
+                    datetime.fromisoformat(str(photo_windows_data["golden_hour_morning_end"]))
+                    if photo_windows_data.get("golden_hour_morning_end")
+                    else None
+                ),
+                golden_hour_evening_start=(
+                    datetime.fromisoformat(str(photo_windows_data["golden_hour_evening_start"]))
+                    if photo_windows_data.get("golden_hour_evening_start")
+                    else None
+                ),
+                golden_hour_evening_end=(
+                    datetime.fromisoformat(str(photo_windows_data["golden_hour_evening_end"]))
+                    if photo_windows_data.get("golden_hour_evening_end")
+                    else None
+                ),
+                blue_hour_morning_start=(
+                    datetime.fromisoformat(str(photo_windows_data["blue_hour_morning_start"]))
+                    if photo_windows_data.get("blue_hour_morning_start")
+                    else None
+                ),
+                blue_hour_morning_end=(
+                    datetime.fromisoformat(str(photo_windows_data["blue_hour_morning_end"]))
+                    if photo_windows_data.get("blue_hour_morning_end")
+                    else None
+                ),
+                blue_hour_evening_start=(
+                    datetime.fromisoformat(str(photo_windows_data["blue_hour_evening_start"]))
+                    if photo_windows_data.get("blue_hour_evening_start")
+                    else None
+                ),
+                blue_hour_evening_end=(
+                    datetime.fromisoformat(str(photo_windows_data["blue_hour_evening_end"]))
+                    if photo_windows_data.get("blue_hour_evening_end")
+                    else None
+                ),
+            )
+        else:
+            photo_windows = PhotoWindows(
+                golden_hour_morning_start=parse_dt("golden_hour_morning_start"),
+                golden_hour_morning_end=parse_dt("golden_hour_morning_end"),
+                golden_hour_evening_start=parse_dt("golden_hour_evening_start"),
+                golden_hour_evening_end=parse_dt("golden_hour_evening_end"),
+                blue_hour_morning_start=parse_dt("blue_hour_morning_start"),
+                blue_hour_morning_end=parse_dt("blue_hour_morning_end"),
+                blue_hour_evening_start=parse_dt("blue_hour_evening_start"),
+                blue_hour_evening_end=parse_dt("blue_hour_evening_end"),
+            )
 
         return SolarWindow(
-            day=date.fromisoformat(str(data["day"])),
+            day=date.fromisoformat(str(data.get("day") or data["on_date"])),
             sunrise=datetime.fromisoformat(str(data["sunrise"])),
             sunset=datetime.fromisoformat(str(data["sunset"])),
             solar_noon=datetime.fromisoformat(str(data["solar_noon"])),
-            civil_dawn=parse_dt("civil_dawn"),
-            civil_dusk=parse_dt("civil_dusk"),
-            nautical_dawn=parse_dt("nautical_dawn"),
-            nautical_dusk=parse_dt("nautical_dusk"),
-            astronomical_dawn=parse_dt("astronomical_dawn"),
-            astronomical_dusk=parse_dt("astronomical_dusk"),
-            golden_hour_morning_start=parse_dt("golden_hour_morning_start"),
-            golden_hour_morning_end=parse_dt("golden_hour_morning_end"),
-            golden_hour_evening_start=parse_dt("golden_hour_evening_start"),
-            golden_hour_evening_end=parse_dt("golden_hour_evening_end"),
-            blue_hour_morning_start=parse_dt("blue_hour_morning_start"),
-            blue_hour_morning_end=parse_dt("blue_hour_morning_end"),
-            blue_hour_evening_start=parse_dt("blue_hour_evening_start"),
-            blue_hour_evening_end=parse_dt("blue_hour_evening_end"),
+            twilight=twilight,
+            photo_windows=photo_windows,
             calculated_at=datetime.fromisoformat(str(data["calculated_at"])),
         )
