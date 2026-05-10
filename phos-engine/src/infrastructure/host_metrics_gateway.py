@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import re
 import shutil
+import subprocess
 import time
 
 from src.domain.models import SystemMetrics
@@ -38,6 +40,20 @@ class HostMetricsGateway:
 
     @staticmethod
     def _boot_time_epoch() -> float:
-        with Path("/proc/uptime").open(encoding="utf-8") as fp:
-            uptime = float(fp.read().split()[0])
-        return time.time() - uptime
+        proc_uptime = Path("/proc/uptime")
+        if proc_uptime.exists():
+            with proc_uptime.open(encoding="utf-8") as fp:
+                uptime = float(fp.read().split()[0])
+            return time.time() - uptime
+
+        # macOS fallback: parse `kern.boottime`.
+        try:
+            output = subprocess.check_output(["sysctl", "-n", "kern.boottime"], text=True).strip()
+            match = re.search(r"sec\s*=\s*(\d+)", output)
+            if match:
+                return float(match.group(1))
+        except (OSError, subprocess.CalledProcessError):
+            pass
+
+        # Last-resort fallback to avoid crashing metrics endpoint.
+        return time.time()

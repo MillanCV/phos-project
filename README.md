@@ -43,6 +43,26 @@ The frontend and backend run independently:
 
 Frontend calls backend using `VITE_API_BASE_URL`.
 
+### One-command local startup
+
+`bash scripts/dev.sh`
+
+This script now prints the two commands you should run in separate terminals.
+
+Quick usage:
+
+Terminal 1:
+`bash scripts/dev-backend.sh`
+
+Terminal 2:
+`bash scripts/dev-frontend.sh`
+
+Defaults:
+
+- backend: `http://127.0.0.1:8000` (`PHOS_BACKEND_PORT`)
+- frontend: `http://127.0.0.1:5173` (`PHOS_FRONTEND_PORT`)
+- camera mode: `PHOS_CAMERA_MOCK=true` for local backend tests
+
 ### API V1 Endpoints
 
 - `GET /api/camera/status`
