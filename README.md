@@ -10,6 +10,13 @@ phos engine: Backend API built with Python 3.11 and FastAPI managed by uv.
 phos portal: Frontend Dashboard built with React TypeScript and Vite.
 github: CI CD pipelines for automated deployment to the Pi via Tailscale.
 
+### Backend Layers (`phos-engine/src`)
+
+- `domain`: entities and business rules.
+- `application`: use cases and ports.
+- `infrastructure`: CHDKPTP, storage, scheduler, metrics adapters.
+- `interfaces/http`: FastAPI routes and DTOs.
+
 ## Local Development Mac
 
 ### Prerequisites
@@ -36,12 +43,28 @@ The frontend and backend run independently:
 
 Frontend calls backend using `VITE_API_BASE_URL`.
 
+### API V1 Endpoints
+
+- `GET /api/camera/status`
+- `POST /api/capture/photo`
+- `GET /api/capture/latest`
+- `POST /api/timelapse/plans`
+- `POST /api/timelapse/plans/{id}/start`
+- `POST /api/timelapse/plans/{id}/stop`
+- `GET /api/timelapse/plans/{id}`
+- `GET /api/system/metrics`
+
 ## Deployment to Raspberry Pi 2
 
 Deployment is handled automatically via GitHub Actions whenever you push to `main`.
 The workflow builds `phos-portal`, syncs backend dependencies, and restarts backend plus optional frontend services.
 
 Set repository variable `PHOS_API_BASE_URL` to `/api` when using reverse proxy on the same domain (recommended for production).
+Set optional backend variables:
+
+- `PHOS_ALLOWED_ORIGINS` (comma-separated origins)
+- `PHOS_CAMERA_MOCK=true` (run without physical camera)
+- `CHDKPTP_BIN` (custom binary path)
 
 ### Requirements on the Pi
 

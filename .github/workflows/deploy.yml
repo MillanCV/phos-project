@@ -35,6 +35,7 @@ jobs:
         run: |
           cd phos-engine
           /home/millan/.local/bin/uv sync
+          /home/millan/.local/bin/uv run pytest -q
 
       - name: Restart Backend Service
         run: |
@@ -46,4 +47,17 @@ jobs:
             sudo systemctl restart phos-portal.service
           else
             echo "phos-portal.service not found, skipping restart"
+          fi
+
+      - name: Verify Backend Health
+        run: |
+          sleep 2
+          curl --fail --silent --show-error http://127.0.0.1:8000/api/health
+
+      - name: Verify Frontend Health
+        run: |
+          if sudo systemctl list-unit-files | grep -q '^phos-portal.service'; then
+            curl --fail --silent --show-error http://127.0.0.1:4173 > /dev/null
+          else
+            echo "phos-portal.service not found, skipping frontend healthcheck"
           fi

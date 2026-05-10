@@ -1,5 +1,5 @@
 .app {
-  max-width: 560px;
+  max-width: 760px;
   margin: 0 auto;
   padding: 2rem 1rem;
   display: grid;
@@ -15,6 +15,35 @@
   gap: 0.5rem;
 }
 
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.content-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.content-grid label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+}
+
 .error {
   color: #b91c1c;
 }
@@ -27,6 +56,12 @@ button {
   background: #111827;
   color: #f9fafb;
   cursor: pointer;
+}
+
+input {
+  border: 1px solid #9ca3af;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
 }
 
 button:hover {

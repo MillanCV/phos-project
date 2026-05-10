@@ -1,73 +1,18 @@
-import { useEffect, useState } from 'react'
 import './App.css'
-
-type ApiStatus = {
-  message: string
-  hostname: string
-  timestamp_utc: string
-}
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(
-  /\/$/,
-  '',
-)
+import { CameraStatusCard } from './features/camera-status/CameraStatusCard'
+import { ManualCaptureCard } from './features/manual-capture/ManualCaptureCard'
+import { SystemMetricsCard } from './features/system-metrics/SystemMetricsCard'
+import { TimelapseSchedulerCard } from './features/timelapse-scheduler/TimelapseSchedulerCard'
 
 function App() {
-  const [status, setStatus] = useState<ApiStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const loadStatus = async () => {
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/status`)
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const data = (await response.json()) as ApiStatus
-      setStatus(data)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconocido'
-      setError(`No se pudo contactar el backend: ${message}`)
-      setStatus(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void loadStatus()
-  }, [])
-
   return (
     <main className="app">
       <h1>Phos Portal</h1>
-      <p>Frontend minimo conectado al backend del observatorio.</p>
-
-      <section className="card">
-        {loading && <p>Cargando estado del backend...</p>}
-        {!loading && error && <p className="error">{error}</p>}
-        {!loading && status && (
-          <>
-            <p>
-              <strong>Mensaje:</strong> {status.message}
-            </p>
-            <p>
-              <strong>Host:</strong> {status.hostname}
-            </p>
-            <p>
-              <strong>UTC:</strong> {new Date(status.timestamp_utc).toLocaleString()}
-            </p>
-          </>
-        )}
-      </section>
-
-      <button type="button" onClick={() => void loadStatus()}>
-        Actualizar estado
-      </button>
+      <p>Panel minimo de observatorio para Canon IXUS 105 + CHDKPTP.</p>
+      <CameraStatusCard />
+      <ManualCaptureCard />
+      <TimelapseSchedulerCard />
+      <SystemMetricsCard />
     </main>
   )
 }
