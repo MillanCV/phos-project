@@ -18,3 +18,29 @@
       sans-serif;
   }
 }
+
+@layer components {
+  .control-strip {
+    @apply flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-panel md:flex-row md:items-center md:justify-between;
+  }
+
+  .control-strip__left {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .control-strip__right {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-2 rounded-md border border-border bg-background/70 px-2.5 py-1.5 text-xs text-mutedForeground;
+  }
+
+  .status-pill__label {
+    @apply uppercase tracking-wide;
+  }
+
+  .status-pill__value {
+    @apply font-medium text-foreground;
+  }
+}
