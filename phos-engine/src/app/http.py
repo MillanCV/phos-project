@@ -11,6 +11,8 @@ from src.app.errors import register_exception_handlers
 from src.app.health import router as health_router
 from src.camera.router import router as camera_router
 from src.capture.router import router as capture_router
+from src.lightning.router import router as lightning_router
+from src.motion.router import router as motion_router
 from src.shared.logging import configure_logging, get_logger
 from src.solar.router import router as solar_router
 from src.system.router import router as system_router
@@ -46,6 +48,8 @@ def create_app() -> FastAPI:
     app.include_router(camera_router)
     app.include_router(capture_router)
     app.include_router(timelapse_router)
+    app.include_router(lightning_router)
+    app.include_router(motion_router)
     app.include_router(system_router)
     app.include_router(solar_router)
 

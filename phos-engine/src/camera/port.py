@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Protocol
+from src.camera.ports import CameraControlPort, CameraScriptPort, CameraTransferPort
 
-from src.camera.domain import CameraStatus
+# Backward-compatible alias used by existing slices/tests.
+CameraGateway = CameraControlPort
 
-
-class CameraGateway(Protocol):
-    def get_status(self) -> CameraStatus: ...
-
-    def capture_photo(self) -> Path: ...
+__all__ = ["CameraGateway", "CameraControlPort", "CameraScriptPort", "CameraTransferPort"]
