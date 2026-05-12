@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+RPI_HOST="${RPI_HOST:-raspi-2}"
+RPI_USER="${RPI_USER:-millan}"
+RPI_REPO_DIR="${RPI_REPO_DIR:-/home/millan/Dev/phos-project}"
+
+PHOS_BACKEND_PORT="${PHOS_BACKEND_PORT:-8001}"
+PHOS_FRONTEND_PORT="${PHOS_FRONTEND_PORT:-5174}"
+PHOS_BACKEND_HOST="${PHOS_BACKEND_HOST:-127.0.0.1}"
+PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST:-127.0.0.1}"
+PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK:-false}"
+CHDKPTP_BIN="${CHDKPTP_BIN:-/home/millan/chdkptp_tool/chdkptp-r964/chdkptp.sh}"
+BACKEND_USE_SUDO="${BACKEND_USE_SUDO:-1}"
+
+# Local ports exposed through tunnel for browser/testing.
+LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8001}"
+LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-5174}"
+
+# Set SKIP_SYNC=1 if you only want restart+tunnel.
+SKIP_SYNC="${SKIP_SYNC:-0}"
+SSH_OPTS="${SSH_OPTS:--o BatchMode=yes -o ConnectTimeout=10}"
+NPM_INSTALL_MODE="${NPM_INSTALL_MODE:-auto}"
+
+echo "[raspi-dev-up] Host: ${RPI_USER}@${RPI_HOST}"
+echo "[raspi-dev-up] Remote repo: ${RPI_REPO_DIR}"
+echo "[raspi-dev-up] Remote backend/frontend ports: ${PHOS_BACKEND_PORT}/${PHOS_FRONTEND_PORT}"
+echo "[raspi-dev-up] Remote backend/frontend host: ${PHOS_BACKEND_HOST}/${PHOS_FRONTEND_HOST}"
+echo "[raspi-dev-up] Backend uses sudo: ${BACKEND_USE_SUDO}"
+echo "[raspi-dev-up] Local tunnel ports: ${LOCAL_BACKEND_PORT}/${LOCAL_FRONTEND_PORT}"
+
+if [[ "${SKIP_SYNC}" != "1" ]]; then
+  echo "[raspi-dev-up] Syncing files..."
+  "${ROOT_DIR}/scripts/raspi-sync.sh"
+else
+  echo "[raspi-dev-up] SKIP_SYNC=1, skipping rsync."
+fi
+
+echo "[raspi-dev-up] Restarting backend/frontend on Raspberry..."
+ssh ${SSH_OPTS} "${RPI_USER}@${RPI_HOST}" /bin/bash <<EOF
+set -euo pipefail
+
+SUDO_PREFIX=""
+if [[ "${BACKEND_USE_SUDO}" == "1" ]]; then
+  if ! sudo -n true >/dev/null 2>&1; then
+    echo "[remote] ERROR: BACKEND_USE_SUDO=1 but passwordless sudo is not configured."
+    echo "[remote] Run: sudo visudo"
+    echo "[remote] Add: millan ALL=(ALL) NOPASSWD: /home/millan/.local/bin/uv, /usr/bin/pkill, /bin/kill"
+    exit 1
+  fi
+  SUDO_PREFIX="sudo -n"
+fi
+
+echo "[remote] backend: cd ${RPI_REPO_DIR}/phos-engine"
+cd "${RPI_REPO_DIR}/phos-engine"
+echo "[remote] backend: uv sync"
+/home/millan/.local/bin/uv sync
+
+echo "[remote] backend: stop old process on ${PHOS_BACKEND_PORT}"
+\${SUDO_PREFIX} pkill -f "uvicorn main:app --host ${PHOS_BACKEND_HOST} --port ${PHOS_BACKEND_PORT}" || true
+\${SUDO_PREFIX} pkill -f "uvicorn main:app --host 127.0.0.1 --port ${PHOS_BACKEND_PORT}" || true
+\${SUDO_PREFIX} pkill -f "uvicorn main:app --host 0.0.0.0 --port ${PHOS_BACKEND_PORT}" || true
+if command -v ss >/dev/null 2>&1; then
+  BACKEND_PIDS="$(ss -ltnp 2>/dev/null | awk '/:'"${PHOS_BACKEND_PORT}"'\\b/ {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
+  if [[ -n "\${BACKEND_PIDS}" ]]; then
+    echo "[remote] backend: force-kill listeners on ${PHOS_BACKEND_PORT}: \${BACKEND_PIDS}"
+    \${SUDO_PREFIX} kill -9 \${BACKEND_PIDS} || true
+  fi
+fi
+
+echo "[remote] backend: start dev server"
+if [[ "${BACKEND_USE_SUDO}" == "1" ]]; then
+  nohup sudo -n env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
+else
+  nohup env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
+fi
+
+echo "[remote] frontend: cd ${RPI_REPO_DIR}/phos-portal"
+cd "${RPI_REPO_DIR}/phos-portal"
+if [[ "${NPM_INSTALL_MODE}" == "always" || ( "${NPM_INSTALL_MODE}" == "auto" && ! -d node_modules ) ]]; then
+  echo "[remote] frontend: npm install"
+  npm install --no-fund --no-audit
+else
+  echo "[remote] frontend: skipping npm install (NPM_INSTALL_MODE=${NPM_INSTALL_MODE})"
+fi
+
+echo "[remote] frontend: stop old process on ${PHOS_FRONTEND_PORT}"
+pkill -f "vite --host ${PHOS_FRONTEND_HOST} --port ${PHOS_FRONTEND_PORT}" || true
+pkill -f "vite --host 127.0.0.1 --port ${PHOS_FRONTEND_PORT}" || true
+pkill -f "vite --host 0.0.0.0 --port ${PHOS_FRONTEND_PORT}" || true
+if command -v ss >/dev/null 2>&1; then
+  FRONTEND_PIDS="$(ss -ltnp 2>/dev/null | awk '/:'"${PHOS_FRONTEND_PORT}"'\\b/ {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
+  if [[ -n "\${FRONTEND_PIDS}" ]]; then
+    echo "[remote] frontend: force-kill listeners on ${PHOS_FRONTEND_PORT}: \${FRONTEND_PIDS}"
+    kill -9 \${FRONTEND_PIDS} || true
+  fi
+fi
+
+echo "[remote] frontend: start dev server"
+nohup env VITE_API_BASE_URL="http://127.0.0.1:${PHOS_BACKEND_PORT}/api" npm run dev -- --host "${PHOS_FRONTEND_HOST}" --port "${PHOS_FRONTEND_PORT}" > /tmp/phos-dev-frontend.log 2>&1 &
+
+sleep 1
+echo "[remote] backend health:"
+curl -s "http://127.0.0.1:${PHOS_BACKEND_PORT}/api/health" || true
+EOF
+
+echo "[raspi-dev-up] Ensuring local SSH tunnel..."
+pkill -f "ssh .*${LOCAL_BACKEND_PORT}:127.0.0.1:${PHOS_BACKEND_PORT}.*${LOCAL_FRONTEND_PORT}:127.0.0.1:${PHOS_FRONTEND_PORT}.*${RPI_USER}@${RPI_HOST}" || true
+ssh ${SSH_OPTS} -f -N \
+  -L "${LOCAL_BACKEND_PORT}:127.0.0.1:${PHOS_BACKEND_PORT}" \
+  -L "${LOCAL_FRONTEND_PORT}:127.0.0.1:${PHOS_FRONTEND_PORT}" \
+  "${RPI_USER}@${RPI_HOST}"
+
+echo
+echo "[raspi-dev-up] Ready."
+echo "  Frontend: http://127.0.0.1:${LOCAL_FRONTEND_PORT}"
+echo "  Backend:  http://127.0.0.1:${LOCAL_BACKEND_PORT}/api/health"
+echo
+echo "[raspi-dev-up] Remote logs:"
+echo "  ssh ${RPI_USER}@${RPI_HOST} 'tail -f /tmp/phos-dev-backend.log'"
+echo "  ssh ${RPI_USER}@${RPI_HOST} 'tail -f /tmp/phos-dev-frontend.log'"

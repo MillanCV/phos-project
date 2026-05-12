@@ -31,7 +31,18 @@ class LocalStorageGateway:
         records = self._read_records()
         if not records:
             return None
-        latest = records[0]
+        valid_records: list[dict[str, str]] = []
+        latest: dict[str, str] | None = None
+        for item in records:
+            file_path = Path(str(item.get("file_path", "")))
+            if file_path.exists() and file_path.is_file():
+                valid_records.append(item)
+                if latest is None:
+                    latest = item
+        if len(valid_records) != len(records):
+            self._metadata_file.write_text(json.dumps(valid_records[:500], indent=2), encoding="utf-8")
+        if latest is None:
+            return None
         return CaptureRecord(
             id=latest["id"],
             file_path=latest["file_path"],

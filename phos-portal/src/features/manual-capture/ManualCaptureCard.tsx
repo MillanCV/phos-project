@@ -84,15 +84,15 @@ export function ManualCaptureCard() {
                 <img src={imageUrl} alt="Ultima captura" className="max-h-80 w-full object-contain" loading="lazy" />
               </div>
             )}
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-start justify-between gap-2">
               <span className="text-foreground">Archivo</span>
-              <span className="truncate text-right">{latest.file_path}</span>
+              <span className="min-w-0 max-w-[65%] break-all text-right text-xs">{latest.file_path}</span>
             </div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-2">
               <span className="text-foreground">Fecha</span>
-              <span>{new Date(latest.captured_at).toLocaleString()}</span>
+              <span className="min-w-0 text-right">{new Date(latest.captured_at).toLocaleString()}</span>
             </div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-2">
               <span className="text-foreground">Fuente</span>
               <Badge variant="default">{latest.source}</Badge>
             </div>
