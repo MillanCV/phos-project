@@ -14,6 +14,10 @@ class CameraStatusResponse(BaseModel):
     model: str | None = None
     battery_percent: int | None = None
     mode: Literal["record", "playback", "unknown"] = "unknown"
+    chdkptp_available: bool = False
+    camera_session_state: Literal["idle", "busy", "error", "unavailable"] = "unavailable"
+    last_successful_command_at: datetime | None = None
+    last_command_duration_ms: int | None = None
     last_error: str | None = None
     checked_at: datetime
 
@@ -35,3 +39,9 @@ class ScriptRunResponse(BaseModel):
     stderr: str
     exit_code: int | None
     artifacts: list[str]
+
+
+class CameraPresetResponse(BaseModel):
+    name: str
+    description: str
+    timeout_seconds: int

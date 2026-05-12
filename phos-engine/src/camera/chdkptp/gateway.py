@@ -20,20 +20,69 @@ class ChdkptpCameraGateway:
         self._mock_mode = os.getenv("PHOS_CAMERA_MOCK", "false").lower() == "true"
         self._session = ChdkptpSession(self._chdkptp_bin)
         self._script_runs: dict[str, ScriptExecutionResult] = {}
+        self._camera_session_state: str = "unavailable"
+        self._last_successful_command_at: datetime | None = None
+        self._last_command_duration_ms: int | None = None
 
     def get_status(self) -> CameraStatus:
         if self._mock_mode:
-            return CameraStatus(connection="connected", model="Canon IXUS 105 (mock)", battery_percent=100, mode="record")
+            return CameraStatus(
+                connection="connected",
+                model="Canon IXUS 105 (mock)",
+                battery_percent=100,
+                mode="record",
+                chdkptp_available=True,
+                camera_session_state="idle",
+                last_successful_command_at=datetime.now(timezone.utc),
+                last_command_duration_ms=1,
+            )
 
         if not shutil.which(self._chdkptp_bin):
-            return CameraStatus(connection="error", last_error=f"{self._chdkptp_bin} not found in PATH")
+            self._camera_session_state = "unavailable"
+            return CameraStatus(
+                connection="error",
+                chdkptp_available=False,
+                camera_session_state="unavailable",
+                last_successful_command_at=self._last_successful_command_at,
+                last_command_duration_ms=self._last_command_duration_ms,
+                last_error=f"{self._chdkptp_bin} not found in PATH",
+            )
 
+        started = datetime.now(timezone.utc)
         process = self._session.run_cli(args=["-elist"], timeout_seconds=5)
+        self._last_command_duration_ms = max(1, int((datetime.now(timezone.utc) - started).total_seconds() * 1000))
         if process.returncode != 0:
-            return CameraStatus(connection="disconnected", last_error=process.stderr.strip() or "camera unavailable")
+            self._camera_session_state = "error"
+            return CameraStatus(
+                connection="disconnected",
+                chdkptp_available=True,
+                camera_session_state="error",
+                last_successful_command_at=self._last_successful_command_at,
+                last_command_duration_ms=self._last_command_duration_ms,
+                last_error=process.stderr.strip() or "camera unavailable",
+            )
         if "no cameras" in process.stdout.lower():
-            return CameraStatus(connection="disconnected", model="Canon IXUS 105")
-        return CameraStatus(connection="connected", model="Canon IXUS 105", battery_percent=None, mode="record")
+            self._camera_session_state = "idle"
+            return CameraStatus(
+                connection="disconnected",
+                model="Canon IXUS 105",
+                chdkptp_available=True,
+                camera_session_state="idle",
+                last_successful_command_at=self._last_successful_command_at,
+                last_command_duration_ms=self._last_command_duration_ms,
+            )
+        self._camera_session_state = "idle"
+        self._last_successful_command_at = datetime.now(timezone.utc)
+        return CameraStatus(
+            connection="connected",
+            model="Canon IXUS 105",
+            battery_percent=None,
+            mode="record",
+            chdkptp_available=True,
+            camera_session_state="idle",
+            last_successful_command_at=self._last_successful_command_at,
+            last_command_duration_ms=self._last_command_duration_ms,
+        )
 
     def switch_mode(self, mode: CameraMode) -> None:
         if mode not in ("record", "playback"):
@@ -75,6 +124,7 @@ class ChdkptpCameraGateway:
         run_id = str(uuid4())
         started_at = datetime.now(timezone.utc)
         if self._mock_mode:
+            self._camera_session_state = "busy"
             result = ScriptExecutionResult(
                 run_id=run_id,
                 profile_name=profile.name,
@@ -86,6 +136,7 @@ class ChdkptpCameraGateway:
                 exit_code=0,
                 artifacts=list(profile.expected_artifacts),
             )
+            self._camera_session_state = "idle"
             self._script_runs[run_id] = result
             return result
 
@@ -94,7 +145,10 @@ class ChdkptpCameraGateway:
         if not profile.commands:
             raise ValidationError("script profile commands cannot be empty")
 
+        self._camera_session_state = "busy"
+        started = datetime.now(timezone.utc)
         process = self._session.run(commands=profile.commands, timeout_seconds=profile.timeout_seconds)
+        self._last_command_duration_ms = max(1, int((datetime.now(timezone.utc) - started).total_seconds() * 1000))
         result = ScriptExecutionResult(
             run_id=run_id,
             profile_name=profile.name,
@@ -106,6 +160,13 @@ class ChdkptpCameraGateway:
             exit_code=process.returncode,
             artifacts=collect_artifacts(profile.expected_artifacts, process.stdout),
         )
+        if result.state == "completed":
+            self._last_successful_command_at = datetime.now(timezone.utc)
+            self._camera_session_state = "idle"
+        elif result.state == "running":
+            self._camera_session_state = "busy"
+        else:
+            self._camera_session_state = "error"
         self._script_runs[run_id] = result
         if result.state == "failed":
             raise CameraUnavailableError(result.stderr.strip() or f"script {profile.name} failed")

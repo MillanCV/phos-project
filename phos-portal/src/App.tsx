@@ -1,3 +1,4 @@
+import { CameraConsoleCard } from './features/camera-console/CameraConsoleCard'
 import { CameraStatusCard } from './features/camera-status/CameraStatusCard'
 import { ManualCaptureCard } from './features/manual-capture/ManualCaptureCard'
 import { SolarWindowCard } from './features/solar-window/SolarWindowCard'
@@ -9,6 +10,7 @@ function App() {
   return (
     <AppShell>
       <CameraStatusCard />
+      <CameraConsoleCard />
       <ManualCaptureCard />
       <TimelapseSchedulerCard />
       <SolarWindowCard />

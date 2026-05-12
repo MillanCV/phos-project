@@ -8,6 +8,7 @@ from typing import Literal
 CameraConnection = Literal["connected", "disconnected", "error"]
 CameraMode = Literal["record", "playback", "unknown"]
 ScriptRunState = Literal["running", "completed", "failed", "stopped"]
+CameraSessionState = Literal["idle", "busy", "error", "unavailable"]
 
 
 @dataclass(slots=True)
@@ -16,6 +17,10 @@ class CameraStatus:
     model: str | None = None
     battery_percent: int | None = None
     mode: CameraMode = "unknown"
+    chdkptp_available: bool = False
+    camera_session_state: CameraSessionState = "unavailable"
+    last_successful_command_at: datetime | None = None
+    last_command_duration_ms: int | None = None
     last_error: str | None = None
     checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
