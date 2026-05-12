@@ -19,7 +19,10 @@ class ChdkptpSession:
         self._chdkptp_bin = chdkptp_bin
 
     def run(self, commands: list[str], timeout_seconds: int) -> ChdkptpSessionResult:
-        command = build_exec_command(self._chdkptp_bin, commands)
+        normalized = [item.strip() for item in commands]
+        needs_connect = "c" not in normalized and "connect" not in normalized
+        effective_commands = ["c", *commands] if needs_connect else commands
+        command = build_exec_command(self._chdkptp_bin, effective_commands)
         return self._run_command(command=command, timeout_seconds=timeout_seconds)
 
     def run_cli(self, args: list[str], timeout_seconds: int) -> ChdkptpSessionResult:

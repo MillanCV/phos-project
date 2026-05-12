@@ -130,13 +130,25 @@ class ChdkptpCameraGateway:
             )
             if not matches:
                 self._camera_session_state = "error"
-                raise CameraUnavailableError("capture command succeeded but file was not downloaded")
+                details = "; ".join(
+                    item
+                    for item in [process.stderr.strip(), process.stdout.strip()]
+                    if item
+                )
+                suffix = f" ({details})" if details else ""
+                raise CameraUnavailableError(f"capture command succeeded but file was not downloaded{suffix}")
             if matches[0] != output_file:
                 matches[0].replace(output_file)
 
         if not output_file.exists():
             self._camera_session_state = "error"
-            raise CameraUnavailableError("capture command succeeded but file was not downloaded")
+            details = "; ".join(
+                item
+                for item in [process.stderr.strip(), process.stdout.strip()]
+                if item
+            )
+            suffix = f" ({details})" if details else ""
+            raise CameraUnavailableError(f"capture command succeeded but file was not downloaded{suffix}")
         self._camera_session_state = "idle"
         self._last_successful_command_at = datetime.now(timezone.utc)
         return output_file
