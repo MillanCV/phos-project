@@ -87,7 +87,7 @@ export function CameraConsoleCard() {
                     <p className="text-xs text-mutedForeground">{preset.description}</p>
                   </div>
                   <Button
-                    size="sm"
+                    className="px-2 py-1 text-xs"
                     disabled={runningPreset !== null}
                     onClick={() => void runPreset(preset.name)}
                   >
