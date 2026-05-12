@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Camera, Download } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -17,6 +17,13 @@ export function ManualCaptureCard() {
   const [latest, setLatest] = useState<CaptureRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [imageNonce, setImageNonce] = useState(0)
+
+  const imageUrl = useMemo(() => {
+    if (!latest) return null
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '')
+    return `${apiBaseUrl}/capture/latest/file?ts=${encodeURIComponent(latest.captured_at)}&n=${imageNonce}`
+  }, [latest, imageNonce])
 
   const capture = async () => {
     setLoading(true)
@@ -24,6 +31,7 @@ export function ManualCaptureCard() {
     try {
       const result = await apiClient.post<CaptureRecord>('/capture/photo')
       setLatest(result)
+      setImageNonce((value) => value + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al disparar')
     } finally {
@@ -36,10 +44,18 @@ export function ManualCaptureCard() {
     try {
       const result = await apiClient.get<CaptureRecord | null>('/capture/latest')
       setLatest(result)
+      setImageNonce((value) => value + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al consultar ultima captura')
     }
   }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadLatest()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <Card>
@@ -63,6 +79,11 @@ export function ManualCaptureCard() {
         {error && <Toast variant="danger">{error}</Toast>}
         {latest ? (
           <div className="grid gap-2 text-sm text-mutedForeground">
+            {imageUrl && (
+              <div className="overflow-hidden rounded-md border border-border/60 bg-background/70">
+                <img src={imageUrl} alt="Ultima captura" className="max-h-80 w-full object-contain" loading="lazy" />
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="text-foreground">Archivo</span>
               <span className="truncate text-right">{latest.file_path}</span>

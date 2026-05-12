@@ -12,4 +12,5 @@ echo
 echo "  Terminal 2 (frontend):"
 echo "    cd \"$ROOT_DIR\" && bash scripts/dev-frontend.sh"
 echo
-echo "[dev] Tip: export PHOS_CAMERA_MOCK=true before starting backend for local testing."
+echo "[dev] Tip: backend auto-detects CHDKPTP on Raspberry."
+echo "[dev]      Use PHOS_CAMERA_MOCK=true to force mock mode locally."

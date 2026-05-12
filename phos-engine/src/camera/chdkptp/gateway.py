@@ -100,6 +100,7 @@ class ChdkptpCameraGateway:
     def capture_photo(self) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         output_file = self._captures_dir / f"capture_{timestamp}.jpg"
+        output_stem = output_file.with_suffix("")
 
         if self._mock_mode:
             output_file.write_bytes(b"PHOS_MOCK_CAPTURE")
@@ -108,16 +109,36 @@ class ChdkptpCameraGateway:
         if not shutil.which(self._chdkptp_bin):
             raise CameraUnavailableError(f"{self._chdkptp_bin} not found in PATH")
 
+        self._camera_session_state = "busy"
+        started = datetime.now(timezone.utc)
         commands = [
             "rec",
-            "shoot",
-            f'download -s A/DCIM/100CANON/IMG_0001.JPG "{output_file}"',
+            f'remoteshoot "{output_stem}" -jpg',
         ]
         process = self._session.run(commands=commands, timeout_seconds=30)
+        self._last_command_duration_ms = max(1, int((datetime.now(timezone.utc) - started).total_seconds() * 1000))
         if process.returncode != 0:
+            self._camera_session_state = "error"
             raise CameraUnavailableError(process.stderr.strip() or "capture failed")
+
+        # remoteshoot may emit uppercase extension or variant suffixes.
         if not output_file.exists():
+            matches = sorted(
+                [path for path in self._captures_dir.glob(f"{output_stem.name}*") if path.is_file()],
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            if not matches:
+                self._camera_session_state = "error"
+                raise CameraUnavailableError("capture command succeeded but file was not downloaded")
+            if matches[0] != output_file:
+                matches[0].replace(output_file)
+
+        if not output_file.exists():
+            self._camera_session_state = "error"
             raise CameraUnavailableError("capture command succeeded but file was not downloaded")
+        self._camera_session_state = "idle"
+        self._last_successful_command_at = datetime.now(timezone.utc)
         return output_file
 
     def run_script(self, profile: ScriptProfile) -> ScriptExecutionResult:
