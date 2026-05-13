@@ -14,6 +14,11 @@ PHOS_BACKEND_HOST="${PHOS_BACKEND_HOST:-127.0.0.1}"
 PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST:-127.0.0.1}"
 PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK:-false}"
 CHDKPTP_BIN="${CHDKPTP_BIN:-/home/millan/chdkptp_tool/chdkptp-r964/chdkptp.sh}"
+# Logging (match phos-engine defaults; override when calling raspi-dev-up from your laptop).
+PHOS_LOG_LEVEL="${PHOS_LOG_LEVEL:-DEBUG}"
+PHOS_LOG_COLOR="${PHOS_LOG_COLOR:-1}"
+PHOS_UVICORN_ACCESS_LOG="${PHOS_UVICORN_ACCESS_LOG:-1}"
+PHOS_CAMERA_COMMAND_LOG="${PHOS_CAMERA_COMMAND_LOG:-full}"
 
 # Local ports exposed through tunnel for browser/testing.
 LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8001}"
@@ -31,7 +36,7 @@ echo "[raspi-dev-up] Remote repo: ${RPI_REPO_DIR}"
 echo "[raspi-dev-up] Remote backend/frontend ports: ${PHOS_BACKEND_PORT}/${PHOS_FRONTEND_PORT}"
 echo "[raspi-dev-up] Remote backend/frontend host: ${PHOS_BACKEND_HOST}/${PHOS_FRONTEND_HOST}"
 echo "[raspi-dev-up] Startup timeout/poll: ${STARTUP_TIMEOUT_SECONDS}s/${STARTUP_POLL_INTERVAL_SECONDS}s"
-echo "[raspi-dev-up] Local tunnel ports: ${LOCAL_BACKEND_PORT}/${LOCAL_FRONTEND_PORT}"
+echo "[raspi-dev-up] Remote log file: ssh ${RPI_USER}@${RPI_HOST} 'tail -f /tmp/phos-dev-backend.log'"
 
 if [[ "${SKIP_SYNC}" != "1" ]]; then
   echo "[raspi-dev-up] Syncing files..."
@@ -49,6 +54,10 @@ ssh ${SSH_OPTS} "${RPI_USER}@${RPI_HOST}" env \
   PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST}" \
   PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" \
   CHDKPTP_BIN="${CHDKPTP_BIN}" \
+  PHOS_LOG_LEVEL="${PHOS_LOG_LEVEL}" \
+  PHOS_LOG_COLOR="${PHOS_LOG_COLOR}" \
+  PHOS_UVICORN_ACCESS_LOG="${PHOS_UVICORN_ACCESS_LOG}" \
+  PHOS_CAMERA_COMMAND_LOG="${PHOS_CAMERA_COMMAND_LOG}" \
   NPM_INSTALL_MODE="${NPM_INSTALL_MODE}" \
   STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS}" \
   STARTUP_POLL_INTERVAL_SECONDS="${STARTUP_POLL_INTERVAL_SECONDS}" \
@@ -72,8 +81,19 @@ if command -v ss >/dev/null 2>&1; then
   fi
 fi
 
-echo "[remote] backend: start dev server"
-nohup env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
+echo "[remote] backend: start dev server (logs: tail -f /tmp/phos-dev-backend.log)"
+UVICORN_ACCESS=(--access-log)
+if [[ "${PHOS_UVICORN_ACCESS_LOG:-}" =~ ^(0|false|no|off|never)$ ]]; then
+  UVICORN_ACCESS=(--no-access-log)
+fi
+nohup env \
+  PHOS_LOG_LEVEL="${PHOS_LOG_LEVEL}" \
+  PHOS_LOG_COLOR="${PHOS_LOG_COLOR}" \
+  PHOS_UVICORN_ACCESS_LOG="${PHOS_UVICORN_ACCESS_LOG}" \
+  PHOS_CAMERA_COMMAND_LOG="${PHOS_CAMERA_COMMAND_LOG}" \
+  PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" \
+  CHDKPTP_BIN="${CHDKPTP_BIN}" \
+  /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" "${UVICORN_ACCESS[@]}" > /tmp/phos-dev-backend.log 2>&1 &
 
 echo "[remote] frontend: cd ${RPI_REPO_DIR}/phos-portal"
 cd "${RPI_REPO_DIR}/phos-portal"

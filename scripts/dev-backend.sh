@@ -43,8 +43,14 @@ fi
 
 echo "[backend] Starting on http://127.0.0.1:${BACKEND_PORT}"
 echo "[backend] PHOS_CAMERA_MOCK=${PHOS_CAMERA_MOCK}"
+echo "[backend] Defaults: verbose logs, colors, uvicorn access. Quiet later: PHOS_LOG_LEVEL=INFO PHOS_UVICORN_ACCESS_LOG=0 PHOS_HTTP_LOG_SKIP_PATHS=default PHOS_CAMERA_COMMAND_LOG=summary"
 if [[ -n "$CHDKPTP_BIN" ]]; then
   echo "[backend] CHDKPTP_BIN=$CHDKPTP_BIN"
 fi
 cd "$BACKEND_DIR"
-PHOS_CAMERA_MOCK="$PHOS_CAMERA_MOCK" CHDKPTP_BIN="$CHDKPTP_BIN" uv run python -m uvicorn main:app --reload --host 127.0.0.1 --port "$BACKEND_PORT"
+UVICORN_ACCESS=(--access-log)
+if [[ "${PHOS_UVICORN_ACCESS_LOG:-}" =~ ^(0|false|no|off|never)$ ]]; then
+  UVICORN_ACCESS=(--no-access-log)
+fi
+export PHOS_CAMERA_COMMAND_LOG="${PHOS_CAMERA_COMMAND_LOG:-full}"
+PHOS_CAMERA_MOCK="$PHOS_CAMERA_MOCK" CHDKPTP_BIN="$CHDKPTP_BIN" uv run python -m uvicorn main:app --reload --host 127.0.0.1 --port "$BACKEND_PORT" "${UVICORN_ACCESS[@]}"
