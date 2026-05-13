@@ -10,3 +10,5 @@ class CaptureResponse(BaseModel):
     file_path: str
     captured_at: datetime
     source: str
+    preview_url: str
+    download_url: str

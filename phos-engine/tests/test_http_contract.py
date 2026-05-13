@@ -46,6 +46,13 @@ def test_http_contract_endpoints(isolated_data_dir, monkeypatch):
     capture_payload = capture.json()
     assert capture_payload["source"] == "camera"
     assert capture_payload["file_path"].endswith(".jpg")
+    assert capture_payload["preview_url"] == "/api/capture/latest/file"
+    assert capture_payload["download_url"] == "/api/capture/latest/download"
+
+    latest_file = client.get("/api/capture/latest/file")
+    assert latest_file.status_code == 200
+    latest_download = client.get("/api/capture/latest/download")
+    assert latest_download.status_code == 200
 
     solar_today = client.get("/api/solar/today")
     assert solar_today.status_code == 200

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, Download } from 'lucide-react'
+import { Camera, Download, X } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
@@ -11,6 +11,21 @@ type CaptureRecord = {
   file_path: string
   captured_at: string
   source: string
+  preview_url: string
+  download_url: string
+}
+
+const API_PREFIX = '/api'
+
+function resolveCaptureAssetUrl(rawUrl: string): string {
+  if (rawUrl.startsWith('http')) return rawUrl
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? API_PREFIX).replace(/\/$/, '')
+  const normalizedPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`
+
+  if (apiBaseUrl.endsWith(API_PREFIX) && normalizedPath.startsWith(`${API_PREFIX}/`)) {
+    return `${apiBaseUrl}${normalizedPath.slice(API_PREFIX.length)}`
+  }
+  return `${apiBaseUrl}${normalizedPath}`
 }
 
 export function ManualCaptureCard() {
@@ -21,9 +36,14 @@ export function ManualCaptureCard() {
 
   const imageUrl = useMemo(() => {
     if (!latest) return null
-    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '')
-    return `${apiBaseUrl}/capture/latest/file?ts=${encodeURIComponent(latest.captured_at)}&n=${imageNonce}`
+    const base = resolveCaptureAssetUrl(latest.preview_url)
+    return `${base}?ts=${encodeURIComponent(latest.captured_at)}&n=${imageNonce}`
   }, [latest, imageNonce])
+  const downloadUrl = useMemo(() => {
+    if (!latest) return null
+    return resolveCaptureAssetUrl(latest.download_url)
+  }, [latest])
+  const [isPreviewOpen, setPreviewOpen] = useState(false)
 
   const capture = async () => {
     setLoading(true)
@@ -75,7 +95,26 @@ export function ManualCaptureCard() {
             <Download className="h-4 w-4" />
             Ver ultima captura
           </Button>
+          <Button variant="ghost" disabled={!imageUrl} onClick={() => setPreviewOpen(true)}>
+            Ver grande
+          </Button>
+          {downloadUrl ? (
+            <a
+              href={downloadUrl}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-transparent px-3 py-2 text-sm font-medium text-mutedForeground transition-all duration-150 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-primary/40"
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+            >
+              Descargar
+            </a>
+          ) : (
+            <Button variant="ghost" disabled>
+              Descargar
+            </Button>
+          )}
         </div>
+        {loading && <p className="text-xs text-mutedForeground">Capturando foto, puede tardar unos segundos...</p>}
         {error && <Toast variant="danger">{error}</Toast>}
         {latest ? (
           <div className="grid gap-2 text-sm text-mutedForeground">
@@ -99,6 +138,35 @@ export function ManualCaptureCard() {
           </div>
         ) : (
           <p className="text-sm text-mutedForeground">Sin capturas registradas todavia.</p>
+        )}
+        {isPreviewOpen && imageUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+            role="button"
+            tabIndex={0}
+            onClick={() => setPreviewOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setPreviewOpen(false)
+              }
+            }}
+          >
+            <div className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                className="absolute right-2 top-2 inline-flex items-center justify-center rounded-md border border-border bg-black/70 p-1 text-white hover:bg-black/90"
+                onClick={() => setPreviewOpen(false)}
+                aria-label="Cerrar vista ampliada"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <img
+                src={imageUrl}
+                alt="Vista ampliada de captura"
+                className="max-h-full max-w-full rounded-md border border-border/60 bg-black object-contain"
+              />
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

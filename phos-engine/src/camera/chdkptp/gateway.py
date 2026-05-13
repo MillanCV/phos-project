@@ -111,11 +111,23 @@ class ChdkptpCameraGateway:
 
         self._camera_session_state = "busy"
         started = datetime.now(timezone.utc)
-        commands = [
-            "rec",
-            f'remoteshoot "{output_stem}" -jpg',
-        ]
-        process = self._session.run(commands=commands, timeout_seconds=30)
+        capture_command = f'remoteshoot "{output_stem}" -jpg'
+        queued_attempts: list[list[str]] = [[capture_command]]
+        tried_record_mode_retry = False
+        tried_io_retry = False
+        process = self._session.run(commands=queued_attempts[0], timeout_seconds=30)
+        while process.returncode != 0:
+            if not tried_record_mode_retry and self._needs_record_mode_retry(process):
+                tried_record_mode_retry = True
+                queued_attempts.append(["rec", capture_command])
+            elif not tried_io_retry and self._is_transient_io_error(process):
+                tried_io_retry = True
+                queued_attempts.append([capture_command])
+            else:
+                break
+
+            next_attempt = queued_attempts.pop(1)
+            process = self._session.run(commands=next_attempt, timeout_seconds=30)
         self._last_command_duration_ms = max(1, int((datetime.now(timezone.utc) - started).total_seconds() * 1000))
         if process.returncode != 0:
             self._camera_session_state = "error"
@@ -152,6 +164,20 @@ class ChdkptpCameraGateway:
         self._camera_session_state = "idle"
         self._last_successful_command_at = datetime.now(timezone.utc)
         return output_file
+
+    @staticmethod
+    def _command_output(process) -> str:
+        return "\n".join(item for item in [process.stdout, process.stderr] if item).lower()
+
+    @classmethod
+    def _needs_record_mode_retry(cls, process) -> bool:
+        output = cls._command_output(process)
+        return "not in rec" in output or "record mode" in output
+
+    @classmethod
+    def _is_transient_io_error(cls, process) -> bool:
+        output = cls._command_output(process)
+        return "i/o error" in output
 
     def run_script(self, profile: ScriptProfile) -> ScriptExecutionResult:
         run_id = str(uuid4())

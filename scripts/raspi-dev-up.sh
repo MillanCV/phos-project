@@ -14,7 +14,7 @@ PHOS_BACKEND_HOST="${PHOS_BACKEND_HOST:-127.0.0.1}"
 PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST:-127.0.0.1}"
 PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK:-false}"
 CHDKPTP_BIN="${CHDKPTP_BIN:-/home/millan/chdkptp_tool/chdkptp-r964/chdkptp.sh}"
-BACKEND_USE_SUDO="${BACKEND_USE_SUDO:-1}"
+BACKEND_USE_SUDO="${BACKEND_USE_SUDO:-0}"
 
 # Local ports exposed through tunnel for browser/testing.
 LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8001}"
@@ -24,12 +24,15 @@ LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-5174}"
 SKIP_SYNC="${SKIP_SYNC:-0}"
 SSH_OPTS="${SSH_OPTS:--o BatchMode=yes -o ConnectTimeout=10}"
 NPM_INSTALL_MODE="${NPM_INSTALL_MODE:-auto}"
+STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-90}"
+STARTUP_POLL_INTERVAL_SECONDS="${STARTUP_POLL_INTERVAL_SECONDS:-2}"
 
 echo "[raspi-dev-up] Host: ${RPI_USER}@${RPI_HOST}"
 echo "[raspi-dev-up] Remote repo: ${RPI_REPO_DIR}"
 echo "[raspi-dev-up] Remote backend/frontend ports: ${PHOS_BACKEND_PORT}/${PHOS_FRONTEND_PORT}"
 echo "[raspi-dev-up] Remote backend/frontend host: ${PHOS_BACKEND_HOST}/${PHOS_FRONTEND_HOST}"
 echo "[raspi-dev-up] Backend uses sudo: ${BACKEND_USE_SUDO}"
+echo "[raspi-dev-up] Startup timeout/poll: ${STARTUP_TIMEOUT_SECONDS}s/${STARTUP_POLL_INTERVAL_SECONDS}s"
 echo "[raspi-dev-up] Local tunnel ports: ${LOCAL_BACKEND_PORT}/${LOCAL_FRONTEND_PORT}"
 
 if [[ "${SKIP_SYNC}" != "1" ]]; then
@@ -47,8 +50,10 @@ SUDO_PREFIX=""
 if [[ "${BACKEND_USE_SUDO}" == "1" ]]; then
   if ! sudo -n true >/dev/null 2>&1; then
     echo "[remote] ERROR: BACKEND_USE_SUDO=1 but passwordless sudo is not configured."
+    echo "[remote] Standard mode is BACKEND_USE_SUDO=0."
+    echo "[remote] Re-run without sudo or configure passwordless sudo if you need root access."
     echo "[remote] Run: sudo visudo"
-    echo "[remote] Add: millan ALL=(ALL) NOPASSWD: /home/millan/.local/bin/uv, /usr/bin/pkill, /bin/kill"
+    echo "[remote] Add: millan ALL=(ALL) NOPASSWD: /usr/bin/true, /usr/bin/env, /home/millan/.local/bin/uv, /usr/bin/pkill, /bin/kill"
     exit 1
   fi
   SUDO_PREFIX="sudo -n"
@@ -102,9 +107,26 @@ fi
 echo "[remote] frontend: start dev server"
 nohup env VITE_API_BASE_URL="http://127.0.0.1:${PHOS_BACKEND_PORT}/api" npm run dev -- --host "${PHOS_FRONTEND_HOST}" --port "${PHOS_FRONTEND_PORT}" > /tmp/phos-dev-frontend.log 2>&1 &
 
-sleep 1
-echo "[remote] backend health:"
-curl -s "http://127.0.0.1:${PHOS_BACKEND_PORT}/api/health" || true
+wait_http() {
+  local name="$1"
+  local url="$2"
+  local timeout_seconds="$3"
+  local poll_seconds="$4"
+  local elapsed=0
+  while (( elapsed < timeout_seconds )); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "[remote] ${name} is ready: ${url}"
+      return 0
+    fi
+    sleep "$poll_seconds"
+    elapsed=$((elapsed + poll_seconds))
+  done
+  echo "[remote] ERROR: ${name} did not become ready within ${timeout_seconds}s (${url})"
+  return 1
+}
+
+wait_http "backend" "http://127.0.0.1:${PHOS_BACKEND_PORT}/api/health" "${STARTUP_TIMEOUT_SECONDS}" "${STARTUP_POLL_INTERVAL_SECONDS}"
+wait_http "frontend" "http://127.0.0.1:${PHOS_FRONTEND_PORT}" "${STARTUP_TIMEOUT_SECONDS}" "${STARTUP_POLL_INTERVAL_SECONDS}"
 EOF
 
 echo "[raspi-dev-up] Ensuring local SSH tunnel..."
