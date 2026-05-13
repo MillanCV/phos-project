@@ -14,7 +14,6 @@ PHOS_BACKEND_HOST="${PHOS_BACKEND_HOST:-127.0.0.1}"
 PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST:-127.0.0.1}"
 PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK:-false}"
 CHDKPTP_BIN="${CHDKPTP_BIN:-/home/millan/chdkptp_tool/chdkptp-r964/chdkptp.sh}"
-BACKEND_USE_SUDO="${BACKEND_USE_SUDO:-0}"
 
 # Local ports exposed through tunnel for browser/testing.
 LOCAL_BACKEND_PORT="${LOCAL_BACKEND_PORT:-8001}"
@@ -31,7 +30,6 @@ echo "[raspi-dev-up] Host: ${RPI_USER}@${RPI_HOST}"
 echo "[raspi-dev-up] Remote repo: ${RPI_REPO_DIR}"
 echo "[raspi-dev-up] Remote backend/frontend ports: ${PHOS_BACKEND_PORT}/${PHOS_FRONTEND_PORT}"
 echo "[raspi-dev-up] Remote backend/frontend host: ${PHOS_BACKEND_HOST}/${PHOS_FRONTEND_HOST}"
-echo "[raspi-dev-up] Backend uses sudo: ${BACKEND_USE_SUDO}"
 echo "[raspi-dev-up] Startup timeout/poll: ${STARTUP_TIMEOUT_SECONDS}s/${STARTUP_POLL_INTERVAL_SECONDS}s"
 echo "[raspi-dev-up] Local tunnel ports: ${LOCAL_BACKEND_PORT}/${LOCAL_FRONTEND_PORT}"
 
@@ -43,21 +41,19 @@ else
 fi
 
 echo "[raspi-dev-up] Restarting backend/frontend on Raspberry..."
-ssh ${SSH_OPTS} "${RPI_USER}@${RPI_HOST}" /bin/bash <<EOF
+ssh ${SSH_OPTS} "${RPI_USER}@${RPI_HOST}" env \
+  RPI_REPO_DIR="${RPI_REPO_DIR}" \
+  PHOS_BACKEND_PORT="${PHOS_BACKEND_PORT}" \
+  PHOS_FRONTEND_PORT="${PHOS_FRONTEND_PORT}" \
+  PHOS_BACKEND_HOST="${PHOS_BACKEND_HOST}" \
+  PHOS_FRONTEND_HOST="${PHOS_FRONTEND_HOST}" \
+  PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" \
+  CHDKPTP_BIN="${CHDKPTP_BIN}" \
+  NPM_INSTALL_MODE="${NPM_INSTALL_MODE}" \
+  STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS}" \
+  STARTUP_POLL_INTERVAL_SECONDS="${STARTUP_POLL_INTERVAL_SECONDS}" \
+  /bin/bash <<'EOF'
 set -euo pipefail
-
-SUDO_PREFIX=""
-if [[ "${BACKEND_USE_SUDO}" == "1" ]]; then
-  if ! sudo -n true >/dev/null 2>&1; then
-    echo "[remote] ERROR: BACKEND_USE_SUDO=1 but passwordless sudo is not configured."
-    echo "[remote] Standard mode is BACKEND_USE_SUDO=0."
-    echo "[remote] Re-run without sudo or configure passwordless sudo if you need root access."
-    echo "[remote] Run: sudo visudo"
-    echo "[remote] Add: millan ALL=(ALL) NOPASSWD: /usr/bin/true, /usr/bin/env, /home/millan/.local/bin/uv, /usr/bin/pkill, /bin/kill"
-    exit 1
-  fi
-  SUDO_PREFIX="sudo -n"
-fi
 
 echo "[remote] backend: cd ${RPI_REPO_DIR}/phos-engine"
 cd "${RPI_REPO_DIR}/phos-engine"
@@ -65,23 +61,19 @@ echo "[remote] backend: uv sync"
 /home/millan/.local/bin/uv sync
 
 echo "[remote] backend: stop old process on ${PHOS_BACKEND_PORT}"
-\${SUDO_PREFIX} pkill -f "uvicorn main:app --host ${PHOS_BACKEND_HOST} --port ${PHOS_BACKEND_PORT}" || true
-\${SUDO_PREFIX} pkill -f "uvicorn main:app --host 127.0.0.1 --port ${PHOS_BACKEND_PORT}" || true
-\${SUDO_PREFIX} pkill -f "uvicorn main:app --host 0.0.0.0 --port ${PHOS_BACKEND_PORT}" || true
+pkill -f "uvicorn main:app --host ${PHOS_BACKEND_HOST} --port ${PHOS_BACKEND_PORT}" || true
+pkill -f "uvicorn main:app --host 127.0.0.1 --port ${PHOS_BACKEND_PORT}" || true
+pkill -f "uvicorn main:app --host 0.0.0.0 --port ${PHOS_BACKEND_PORT}" || true
 if command -v ss >/dev/null 2>&1; then
   BACKEND_PIDS="$(ss -ltnp 2>/dev/null | awk '/:'"${PHOS_BACKEND_PORT}"'\\b/ {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
-  if [[ -n "\${BACKEND_PIDS}" ]]; then
-    echo "[remote] backend: force-kill listeners on ${PHOS_BACKEND_PORT}: \${BACKEND_PIDS}"
-    \${SUDO_PREFIX} kill -9 \${BACKEND_PIDS} || true
+  if [[ -n "${BACKEND_PIDS}" ]]; then
+    echo "[remote] backend: force-kill listeners on ${PHOS_BACKEND_PORT}: ${BACKEND_PIDS}"
+    kill -9 ${BACKEND_PIDS} || true
   fi
 fi
 
 echo "[remote] backend: start dev server"
-if [[ "${BACKEND_USE_SUDO}" == "1" ]]; then
-  nohup sudo -n env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
-else
-  nohup env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
-fi
+nohup env PHOS_CAMERA_MOCK="${PHOS_CAMERA_MOCK}" CHDKPTP_BIN="${CHDKPTP_BIN}" /home/millan/.local/bin/uv run python -m uvicorn main:app --reload --host "${PHOS_BACKEND_HOST}" --port "${PHOS_BACKEND_PORT}" > /tmp/phos-dev-backend.log 2>&1 &
 
 echo "[remote] frontend: cd ${RPI_REPO_DIR}/phos-portal"
 cd "${RPI_REPO_DIR}/phos-portal"
@@ -98,9 +90,9 @@ pkill -f "vite --host 127.0.0.1 --port ${PHOS_FRONTEND_PORT}" || true
 pkill -f "vite --host 0.0.0.0 --port ${PHOS_FRONTEND_PORT}" || true
 if command -v ss >/dev/null 2>&1; then
   FRONTEND_PIDS="$(ss -ltnp 2>/dev/null | awk '/:'"${PHOS_FRONTEND_PORT}"'\\b/ {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
-  if [[ -n "\${FRONTEND_PIDS}" ]]; then
-    echo "[remote] frontend: force-kill listeners on ${PHOS_FRONTEND_PORT}: \${FRONTEND_PIDS}"
-    kill -9 \${FRONTEND_PIDS} || true
+  if [[ -n "${FRONTEND_PIDS}" ]]; then
+    echo "[remote] frontend: force-kill listeners on ${PHOS_FRONTEND_PORT}: ${FRONTEND_PIDS}"
+    kill -9 ${FRONTEND_PIDS} || true
   fi
 fi
 
@@ -113,10 +105,14 @@ wait_http() {
   local timeout_seconds="$3"
   local poll_seconds="$4"
   local elapsed=0
+  echo "[remote] waiting for ${name} (max ${timeout_seconds}s, poll ${poll_seconds}s): ${url}"
   while (( elapsed < timeout_seconds )); do
     if curl -fsS "$url" >/dev/null 2>&1; then
       echo "[remote] ${name} is ready: ${url}"
       return 0
+    fi
+    if (( elapsed % 10 == 0 )); then
+      echo "[remote] ${name} not answering yet (${elapsed}s / ${timeout_seconds}s)"
     fi
     sleep "$poll_seconds"
     elapsed=$((elapsed + poll_seconds))

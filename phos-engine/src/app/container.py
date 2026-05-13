@@ -6,7 +6,22 @@ import os
 from zoneinfo import ZoneInfo
 
 from src.camera.gateway import ChdkptpCameraGateway
-from src.camera.use_cases import GetCameraScriptStatus, GetCameraStatus, RunCameraScript, StopCameraScript
+from src.camera.live_view_feed import LiveViewFeed
+from src.camera.manual_service import CameraControlService
+from src.camera.operation_queue import CameraOperationQueue
+from src.camera.use_cases import (
+    CaptureLiveViewFrame,
+    GetCameraManualState,
+    GetCameraOperationStatus,
+    GetCameraScriptStatus,
+    GetCameraStatus,
+    RunCameraScript,
+    StopCameraScript,
+    SubmitCameraSleep,
+    SubmitCameraWake,
+    SubmitManualSettings,
+    TouchCameraControl,
+)
 from src.capture.gateway import LocalStorageGateway
 from src.capture.use_cases import CapturePhoto, GetLatestCapture
 from src.lightning.manager import LightningManager
@@ -30,7 +45,15 @@ class ApiContainer:
     run_camera_script: RunCameraScript
     stop_camera_script: StopCameraScript
     get_camera_script_status: GetCameraScriptStatus
+    get_camera_manual_state: GetCameraManualState
+    touch_camera_control: TouchCameraControl
+    submit_manual_settings: SubmitManualSettings
+    submit_camera_sleep: SubmitCameraSleep
+    submit_camera_wake: SubmitCameraWake
+    get_camera_operation_status: GetCameraOperationStatus
     capture_photo: CapturePhoto
+    capture_live_view_frame: CaptureLiveViewFrame
+    live_view_feed: LiveViewFeed
     get_latest_capture: GetLatestCapture
     get_system_metrics: GetSystemMetrics
     get_solar_window: GetSolarWindow
@@ -52,6 +75,15 @@ def build_container() -> ApiContainer:
     solar_cache_file = data_dir / "solar_cache.json"
 
     camera_gateway = ChdkptpCameraGateway(captures_dir=captures_dir)
+    live_view_fps = float(os.getenv("PHOS_LIVEVIEW_FPS", "5"))
+    live_view_feed = LiveViewFeed(camera_gateway.capture_live_view_frame, fps=live_view_fps)
+    camera_operation_queue = CameraOperationQueue()
+    camera_control_service = CameraControlService(
+        manual_port=camera_gateway,
+        operation_queue=camera_operation_queue,
+        sleep_after_seconds=int(os.getenv("PHOS_CAMERA_SLEEP_AFTER_SECONDS", "60")),
+        deep_sleep_after_seconds=int(os.getenv("PHOS_CAMERA_DEEP_SLEEP_AFTER_SECONDS", "600")),
+    )
     storage_gateway = LocalStorageGateway(metadata_file=metadata_file)
     scheduler_gateway = ThreadSchedulerGateway()
     plan_repository = JsonTimelapsePlanRepository(storage_file=plans_file)
@@ -93,7 +125,15 @@ def build_container() -> ApiContainer:
         run_camera_script=RunCameraScript(camera_gateway),
         stop_camera_script=StopCameraScript(camera_gateway),
         get_camera_script_status=GetCameraScriptStatus(camera_gateway),
+        get_camera_manual_state=GetCameraManualState(camera_control_service),
+        touch_camera_control=TouchCameraControl(camera_control_service),
+        submit_manual_settings=SubmitManualSettings(camera_control_service),
+        submit_camera_sleep=SubmitCameraSleep(camera_control_service),
+        submit_camera_wake=SubmitCameraWake(camera_control_service),
+        get_camera_operation_status=GetCameraOperationStatus(camera_control_service),
         capture_photo=CapturePhoto(camera_gateway, storage_gateway),
+        capture_live_view_frame=CaptureLiveViewFrame(camera_gateway),
+        live_view_feed=live_view_feed,
         get_latest_capture=GetLatestCapture(storage_gateway),
         get_system_metrics=GetSystemMetrics(metrics_gateway),
         get_solar_window=GetSolarWindow(solar_gateway),

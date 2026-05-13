@@ -11,6 +11,7 @@ Backend service for camera automation and capture workflows (normal capture, tim
 ## CHDK / CHDKPTP documentation
 
 - Project quick guide: [`docs/chdk-chdkptp-quick-guide.md`](docs/chdk-chdkptp-quick-guide.md)
+- CHDK scripting capabilities catalog: [`docs/chdk-scripting-capabilities.md`](docs/chdk-scripting-capabilities.md)
 - CHDKPTP Scripting Guide: <https://app.assembla.com/spaces/chdkptp/wiki/Scripting_Guide>
 - CHDKPTP CLI Quickstart: <https://app.assembla.com/spaces/chdkptp/wiki/CLI_Quickstart>
 - CHDKPTP DNG Processing: <https://app.assembla.com/spaces/chdkptp/wiki/DNG_Processing>

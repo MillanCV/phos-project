@@ -9,9 +9,9 @@ import { AppShell } from './layout/AppShell'
 function App() {
   return (
     <AppShell>
+      <ManualCaptureCard />
       <CameraStatusCard />
       <CameraConsoleCard />
-      <ManualCaptureCard />
       <TimelapseSchedulerCard />
       <SolarWindowCard />
       <SystemMetricsCard />
